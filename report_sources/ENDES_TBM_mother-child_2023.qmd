@@ -1,0 +1,581 @@
+---
+title: "ENDES_TBM_2019"
+author: "Carlos Ballon-Salcedo"
+format: html
+editor: visual
+execute:
+  echo: false
+  warning: false
+  message: false
+  error: false
+  include: true
+  results: hide
+  cache: false
+  fig_caption: true
+  fig_width: 6
+  fig_height: 4
+  out.width: "100%"
+  out.extra: |
+    class="img-responsive"
+    style="display:block; margin-left:auto; margin-right:auto;"
+---
+
+# Load packages
+
+```{r}
+pacman::p_load(
+  rio,
+  here,
+  tidyverse,
+  survey,
+  gtsummary,
+  finalfit,
+  flextable,
+  bstfun,
+  haven, 
+  janitor,
+  labelled,
+  naniar,
+  rfextras)
+
+#source(here::here("scripts", "dictionary.R"))
+rfextras::load_scripts()
+```
+
+# Import data
+
+```{r}
+# 
+individual_data <- rio::import(here::here("data", "raw", "RECH1_2023.dta"))
+
+home_data <- rio::import(here::here("data", "raw", "RECH0_2023.dta"))
+
+dwelling_data <- rio::import(here::here("data", "raw", "RECH23_2023.dta"))
+```
+
+```{r}
+woman_data_1 <- rio::import(here::here("data", "raw", "RECH5_2023.dta"))
+
+woman_data_2 <- rio::import(here::here("data", "raw", "REC0111_2023.dta"))
+
+woman_data_3 <- rio::import(here::here("data", "raw", "REC41_2023.dta"))
+
+woman_data_4 <- rio::import(here::here("data", "raw", "REC42_2023.dta"))
+
+woman_data_5 <- rio::import(here::here("data", "raw", "RE223132_2023.dta"))
+```
+
+```{r}
+children_data_1 <- rio::import(here::here("data", "raw", "RECH6_2023.dta"))
+
+children_data_2 <- rio::import(here::here("data", "raw", "REC44_2023.dta"))
+```
+
+```{r}
+health_data <- rio::import(here::here("data", "raw", "CSALUD01_2023.dta"))
+```
+
+# Process data
+
+## Normalization of identifiers
+
+```{r}
+# Individual data
+individual_data <- individual_data |> 
+  dplyr::mutate(QSNUMERO = HVIDX)
+
+# Woman data
+woman_data_1 <- woman_data_1 |> 
+  dplyr::mutate(QSNUMERO = HA0)
+
+woman_data_2 <- woman_data_2 |>
+  dplyr::mutate(
+    QSNUMERO = str_sub(CASEID, -2, -1),
+    QSNUMERO = as.numeric(QSNUMERO))
+
+woman_data_3 <- woman_data_3 |>
+  dplyr::mutate(
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    QSNUMERO = str_sub(CASEID, -2, -1),
+    QSNUMERO = as.numeric(QSNUMERO)
+  )
+
+woman_data_4 <- woman_data_4 |>
+  dplyr::mutate(
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    QSNUMERO = str_sub(CASEID, -2, -1),
+    QSNUMERO = as.numeric(QSNUMERO)
+  )
+
+woman_data_5 <- woman_data_5 |>
+  dplyr::mutate(
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    QSNUMERO = str_sub(CASEID, -2, -1),
+    QSNUMERO = as.numeric(QSNUMERO)
+  )
+
+# Children data
+children_data_1 <- children_data_1 |>
+  dplyr::mutate(
+    HW1 = HC1,
+    HW2 = HC2,
+    HW3 = HC3,
+    HW53 = HC53,
+    QSNUMERO = HC60
+  ) |>
+  dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
+
+children_data_2 <- children_data_2 |>
+  dplyr::mutate(
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    QSNUMERO = str_sub(CASEID, -2, -1),
+    QSNUMERO = as.numeric(QSNUMERO)
+  ) |>
+    dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
+```
+
+```{r}
+summary(children_data_1$HC2)
+summary(children_data_2$HW2)
+```
+
+## Join dataframes
+
+```{r}
+# Join mother data
+woman_data <- woman_data_1 |>
+  dplyr::left_join(woman_data_2, by = c("HHID", "QSNUMERO")) |>
+  dplyr::left_join(woman_data_4, by = c("HHID", "QSNUMERO")) |>
+  dplyr::left_join(woman_data_5, by = c("HHID", "QSNUMERO"))
+
+# Join children data
+children_data <- children_data_1 |>
+  dplyr::left_join(children_data_2, by = c("HHID", "QSNUMERO", "HW1", "HW2", "HW3")) |>
+  dplyr::rename(MIDX = HWIDX)
+
+# Join children data with mother data
+children_mother_data <- children_data |>
+  dplyr::left_join(woman_data_3, by = c("HHID", "QSNUMERO", "MIDX"))
+
+# Join home data with dwelling data
+home_dwelling_data <- home_data |>
+  dplyr::left_join(dwelling_data, by = "HHID")
+
+# Join children/mother data with individual data
+children_mother_individual_data <- children_mother_data |>
+  dplyr::left_join(individual_data, by = c("HHID","QSNUMERO"))
+
+# Join home/dwelling/individual data with mother data
+pre_data <- children_mother_individual_data |>
+  dplyr::left_join(woman_data, by = c("HHID","QSNUMERO"))
+
+# Join home/dwelling/individual/mother data with health data
+pre_data_1 <- pre_data |> 
+  dplyr::left_join(health_data, by = c("HHID","QSNUMERO"))
+
+# Join all
+endestc <- pre_data_1 |>
+  dplyr::left_join(home_dwelling_data, by = 'HHID')
+
+# Clean names
+# endestc <- janitor::clean_names(endestc)
+
+# haven::write_dta(endestc, here::here("data", "endestc.dta"))
+```
+
+## Variable selection
+
+```{r}
+endes_dbm_tbm <- variable_selection_endes(endestc) |>
+  dplyr::filter(currently_pregnant != 1 | is.na(currently_pregnant))
+```
+
+## Non-plausible values
+
+```{r}
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    sd_height_age_child = case_when(
+      sd_height_age_child > 500  ~ NA_real_,
+      sd_height_age_child < -500 ~ NA_real_,
+      sd_height_age_child >= 9996 ~ NA_real_,
+      TRUE ~ sd_height_age_child
+    ),
+    sd_weight_height_child = case_when(
+      sd_weight_height_child > 500  ~ NA_real_,
+      sd_weight_height_child < -500 ~ NA_real_,
+      sd_weight_height_child >= 9996 ~ NA_real_,
+      TRUE ~ sd_weight_height_child
+    ),
+    sd_weight_age_child = case_when(
+      sd_weight_age_child > 500  ~ NA_real_,
+      sd_weight_age_child < -500 ~ NA_real_,
+      sd_weight_age_child >= 9996 ~ NA_real_,
+      TRUE ~ sd_weight_age_child
+    ),
+    bmi_mother_1 = (weight_mother / 10) / ((height_mother / 10)^2) * 10000,
+    bmi_mother_1 = case_when(
+      bmi_mother_1 > 60  ~ NA_real_,
+      bmi_mother_1 < 16 ~ NA_real_,
+      TRUE ~ bmi_mother_1
+    )
+  ) |>
+  dplyr::filter(
+    !is.na(sd_height_age_child),
+    !is.na(sd_weight_height_child),
+    !is.na(sd_weight_age_child),
+    !is.na(bmi_mother_1),
+    !is.na(hb_child)
+  )
+```
+
+
+```{r}
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::group_by(id) |>
+  dplyr::slice_min(age_child, with_ties = TRUE) |>
+  dplyr::ungroup()
+```
+
+
+```{r}
+#| eval: false
+#| include: false
+summary(endes_dbm_tbm$age_mother)
+summary(endes_dbm_tbm$bmi_mother)
+sum(is.na(endes_dbm_tbm$sd_height_age_child))
+sum(is.na(endes_dbm_tbm$sd_weight_age_child))
+lapply(endes_dbm_tbm, function(x) sum(is.na(x)))
+
+```
+
+## Remove missing values
+
+```{r}
+
+```
+
+## Recode and relevel (dictionary)
+
+reducir tamaño de población, filtrar lima, region, area o los manejamos como confusores
+
+modelo truncado por 0 (solo positivos)
+propensity score
+
+```{r}
+#RETRAZO EN EL CRECIMIENTO
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    stunting =
+      case_when(
+        sd_height_age_child < -200  ~ 1,
+        sd_height_age_child >= -200 ~ 0,
+        sd_height_age_child >= 9996 ~ 99
+      )
+  ) |>
+  naniar::replace_with_na(replace = list(stunting = c(99))) |>
+  labelled::set_value_labels(stunting = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(stunting = "Stunted child under 5 years")
+
+table(endes_dbm_tbm$stunting)
+str(endes_dbm_tbm$stunting)
+
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    wasting =
+      case_when(
+        sd_weight_height_child < -200  ~ 1,
+        sd_weight_height_child >= -200 ~ 0,
+        sd_weight_height_child >= 9996 ~ 99
+      )
+  ) |>
+  naniar::replace_with_na(replace = list(wasting = c(99))) |>
+  labelled::set_value_labels(wasting = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(wasting = "Wasted child under 5 years")
+
+#Bajo peso
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    underweight =
+      case_when(
+        sd_weight_age_child < -200  ~ 1,
+        sd_weight_age_child >= -200 ~ 0,
+        sd_weight_age_child >= 9996 ~ 99
+      )
+  ) |>
+  naniar::replace_with_na(replace = list(underweight = c(99))) |>
+  labelled::set_value_labels(underweight = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(underweight = "Underweight child under 5 years")
+
+#Sobrepeso y obesidad
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    overweight =
+      case_when(
+        sd_weight_age_child > 200  ~ 1,
+        sd_weight_age_child <= 200 ~ 0,
+        sd_weight_age_child >= 9996 ~ 99
+      )
+  ) |>
+  naniar::replace_with_na(replace = list(overweight = c(99))) |>
+  labelled::set_value_labels(overweight = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(overweight = "Overweight child under 5 years")
+
+#Anemia corregida OMS
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    anemia_oms =
+      case_when(
+        hb_altura_child < 110  ~ 1,
+        hb_altura_child >= 110 ~ 0 
+      )
+  ) |>
+  labelled::set_value_labels(anemia_oms = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(anemia_oms = "Anemia child under 5 years")
+
+table(endes_dbm_tbm$anemia_oms)
+
+#MADRE CON SOBREPESO U OBESIDAD
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    overweight_mother =
+      case_when(
+        bmi_mother_1 > 25  ~ 1,
+        bmi_mother_1 <= 25 ~ 0,
+      )
+  ) |>
+  labelled::set_value_labels(overweight_mother = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(overweight_mother = "Mother overweight/obese")
+
+# Undernutrition
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    undernutrition = case_when(
+      stunting == 1 | wasting == 1 | underweight == 1 ~ 1,
+      TRUE ~ 0)
+  ) |>
+  labelled::set_value_labels(undernutrition = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(undernutrition = "Undernutrition")
+
+# Overweight/stunting
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    overweight_stunting = case_when(
+      overweight_mother == 1 & stunting == 1 ~ 1,
+      TRUE ~ 0)
+  ) |>
+  labelled::set_value_labels(overweight_stunting = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(overweight_stunting = "Overweight/stunting")
+
+# Overweight/wasting
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    overweight_wasting = case_when(
+      overweight_mother == 1 & wasting == 1 ~ 1,
+      TRUE ~ 0)
+  ) |>
+  labelled::set_value_labels(overweight_wasting = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(overweight_wasting = "Overweight/wasting")
+
+# Overweight/underweight
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    overweight_underweight = case_when(
+      overweight_mother == 1 & underweight == 1 ~ 1,
+      TRUE ~ 0)
+  ) |>
+  labelled::set_value_labels(overweight_underweight = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(overweight_underweight = "Overweight/underweight")
+
+# Double burden
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    double_burden = case_when(
+      overweight_mother == 1 & undernutrition == 1 ~ 1,
+      TRUE ~ 0)
+  ) |>
+  labelled::set_value_labels(double_burden = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(double_burden = "DBM")
+
+# Overweight/anemia
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    overweight_anemia_oms = case_when(
+      overweight_mother == 1 & anemia_oms == 1 ~ 1,
+      TRUE ~ 0)
+  ) |>
+  labelled::set_value_labels(overweight_anemia_oms = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(overweight_anemia_oms = "Overweight/undernutrition")
+
+# Triple burden
+endes_dbm_tbm <- endes_dbm_tbm |>
+  dplyr::mutate(
+    triple_burden = case_when(
+      overweight_mother == 1 & undernutrition == 1 & anemia_oms == 1 ~ 1,
+      TRUE ~ 0)
+  ) |>
+  labelled::set_value_labels(triple_burden = c("Yes" = 1, "No" = 0)) |>
+  labelled::set_variable_labels(triple_burden = "TBM")
+
+haven::write_dta(endes_dbm_tbm, here::here("data", "clean", "endes_dbm_tbm.dta"))
+```
+
+
+## Exploratory Data Analysis (EDA)
+
+```{r}
+# Filtrada
+dbm <- ninios |>
+  dplyr::select(hc8, hc57, hc71, hc70, id1, hc72, peso, id1) |>
+  na.omit() |>
+  dplyr::filter(hc71 < 2000, hc70 < 2000, hc72 < 2000) |>
+  dplyr::mutate(hc57 = as.factor(hc57), peso_edad = hc71 / 100, talla_edad = hc70 / 100, peso_talla = hc72 /100) |>
+  dplyr::mutate(
+    anemia = case_when(hc57 == 4 ~ "Sin Anemia", TRUE ~ "Anemia"),
+    talla_edad_dico = case_when(talla_edad < -2 ~ "DCI", TRUE ~ "Normal"),
+    peso_edad_dico = case_when(peso_edad > 2 ~ "Exceso de peso", TRUE ~ "Normal"),
+    peso_talla_dico = case_when(peso_talla < -2 ~ "Emaciacion", TRUE ~ "Sin emaciacion"),
+    peso_talla_dico_1 = case_when(peso_talla > 2 ~ "Exceso de peso", TRUE ~ "Normal"),
+    
+    DBM_1 = case_when(anemia == "Anemia" & talla_edad_dico == "DCI" ~ "DBM", TRUE ~ "No DBM"), # Usaremos esta
+    DBM_2 = case_when(anemia == "Anemia" & peso_edad_dico == "Exceso de peso" ~ "DBM", TRUE ~ "No DBM"),
+    DBM_3 = case_when(anemia == "Anemia" & peso_talla_dico == "Emaciacion" ~ "DBM", TRUE ~ "No DBM"),
+    DBM_4 = case_when(anemia == "Anemia" & peso_talla_dico_1 == "Exceso de peso" ~ "DBM", TRUE ~ "No DBM")
+  )
+
+summary(dbm)
+
+prop.table(table(dbm$peso_talla_dico))*100
+
+prop.table(table(dbm$id1, dbm$DBM_4), margin = 1)*100
+
+hist(dbm$talla_edad, breaks = 100, col = "lightblue", main = "Peso para la Edad", xlab = "Peso para la Edad")
+
+ggplot(dbm, aes(x = as.factor(id1), fill = DBM_1)) + 
+  geom_bar()
+
+# Sin filtro
+sin_pro <- ninios |>
+  dplyr::mutate(
+    talla_edad = hc70 / 100,
+    anemia = case_when(hc57 == 4 ~ "Sin Anemia", TRUE ~ "Anemia"),
+    talla_edad_dico = case_when(talla_edad < -2 ~ "DCI", TRUE ~ "Normal"),
+    DBM_1 = case_when(anemia == "Anemia" & talla_edad_dico == "DCI" ~ "DBM", TRUE ~ "No DBM"))
+
+test <- sin_pro |>
+  dplyr::select(id1, DBM_1) |>
+  dplyr::count(id1)
+
+test
+
+test_2 <- dbm |>
+  dplyr::select(id1, DBM_1) |>
+  dplyr::count(id1, DBM_1)
+
+test_2
+```
+
+# Produce tables
+
+## Table 1
+
+```{r}
+dbm |>
+  dplyr::select(where(is.character), peso, -DBM_2, -DBM_3, -DBM_4) |>
+  tidyr::pivot_longer(
+    cols = c(anemia:peso_talla_dico_1),
+    names_to = "Variable",
+    values_to = "Valor"
+  ) |>
+  dplyr::group_by(Variable, Valor) |>
+  dplyr::summarise(n = n(), weighted_prop = sum(peso)) |>
+  dplyr::mutate(weighted_prop = round(weighted_prop / sum(weighted_prop) * 100, 2))
+```
+
+```{r}
+tbl_svysummary <-
+  survey::svydesign(
+    ids = ~ 1,
+    data = dbm,
+    weights = ~ peso) |>
+  tbl_svysummary(
+    percent = "column",
+    statistic = list(all_categorical() ~ "{n_unweighted} ({p})"),
+    type   = all_categorical() ~ "categorical",
+    digits = all_categorical() ~ c(0, 1)
+  ) |>
+  add_ci(
+    method = list(all_categorical() ~ "svyprop.logit"),
+    statistic = list(all_categorical() ~ "{conf.low} - {conf.high}"),
+    style_fun = list(all_categorical() ~ purrr::partial(style_percent, digits = 1))
+  ) |>
+  bold_labels()
+
+tbl_svysummary
+```
+
+## Table 2 (regression)
+
+```{r}
+design <- survey::svydesign(ids = ~ 1, data = dbm, weights = ~ peso)
+```
+
+```{r}
+univ_tab <-
+  tbl_uvregression(
+    data = design,
+    method = glm,
+    method.args = list(quasipoisson(link = "log")),
+    include = c(sexo:trabajo),
+    y = FIES,
+    hide_n = TRUE,
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    ci_method = "wald",
+    tidy_fun = broom.helpers::tidy_parameters,
+    add_estimate_to_reference_rows = FALSE,
+    pvalue_fun = ~style_pvalue(.x, digits = 3),
+    estimate_fun = ~style_number(.x, digits = 2)) |>
+  bold_labels() |>
+  modify_footnote(everything() ~ NA, abbreviation = TRUE)
+```
+
+```{r}
+table_3.1 <-
+  glm(
+    dx_nutricional ~ edad_del_nino.c + sexo + frecuencia_visita +
+      lactancia_materna + edad_de_alimentacion_complementaria +
+      presencia_de_alimentos_nutritivos + edad_materna.c + nivel_educativo +
+      estado_civil + estado_civil + numero_de_miembros_en_el_hogar +
+      ingreso_familiar + situacion_ocupacional + apoyo_familiar + toma_de_decisiones +
+      comidas_al_dia_de_la_madre + mdd_w,
+    data = data,
+    family = quasipoisson(link = "log")) |>
+  tbl_regression(
+    exponentiate = TRUE,
+    conf.int = TRUE,
+    pvalue_fun = ~ style_pvalue(.x, digits = 3),
+    estimate_fun = ~ style_number(.x, digits = 2)) |>
+  bold_p(t = 0.05) |>
+  add_vif() |>
+  modify_footnote(update = everything() ~ NA, abbreviation = TRUE)
+```
+
+```{r}
+data <- endes |>
+  dplyr::select(urb_rur, region_natural, idx_riq, desague, agua, electricidad,
+                combustible, agem_cat, primer_parto, num_child_cat, est_civ,
+                lvl_educativo, sexo_jefe, agec_cat, sex_child, hierro_embarazo,
+                weight_born_cat, tamano_percibido, actual_amamantando, 
+                triple_burden, sample_weight_house)
+colnames(endes)
+
+
+data1 <- data |>
+  dplyr::mutate(lactancia = case_when(actual_amamantando == 0 & agec_cat >= 2 ~ "P_>2years",
+                                      actual_amamantando == 0 & agec_cat < 2 ~ "P_<2years",
+                                      actual_amamantando == 1 & agec_cat >= 2 ~ "C_>2years",
+                                      actual_amamantando == 1 & agec_cat < 2 ~ "C_<2years",
+                                      FALSE ~ "Never"))
+
+```

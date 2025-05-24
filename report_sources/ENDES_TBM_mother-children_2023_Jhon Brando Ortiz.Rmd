@@ -1,0 +1,2249 @@
+---
+title: "Triple carga"
+author: "Brando Ortiz"
+date: "15/4/2022"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(tidyr)
+library(haven)
+library(grid)
+library(Matrix)
+library(survey)
+library(sjPlot)
+library(sjmisc)
+library(sjlabelled)
+library(fastmap)
+library(dplyr)
+library(tab)
+library(Epi)
+library(foreign)
+library(sandwich) 
+library(lmtest)
+library(msm)
+library(readstata13)
+library(Rcpp)
+library(ggpubr)
+library(rstatix)
+library(grid)
+library(hexbin)
+library(naniar)
+library(tidyselect)
+library(labelled)
+```
+
+#Aumenta el limite de la memoria (supongo que memoria cache)
+```{r}
+memory.limit(size = 8000)
+```
+
+#Lectura de bases de datos
+
+```{r}
+PERSONA=rio::import(here::here("data", "RECH1_2023.dta"))
+
+HOGAR=rio::import(here::here("data", "RECH0_2023.dta"))
+
+VIVIENDA=rio::import(here::here("data", "RECH23_2023.dta"))
+
+MUJER = rio::import(here::here("data", "RECH5_2023.dta"))
+
+MUJER2 = rio::import(here::here("data", "REC0111_2023.dta"))
+
+MUJER3 = rio::import(here::here("data", "REC41_2023.dta"))
+
+MUJER4 = rio::import(here::here("data", "REC42_2023.dta"))
+
+MUJER5 = rio::import(here::here("data", "RE223132_2023.dta"))
+
+NINO = rio::import(here::here("data", "RECH6_2023.dta"))
+
+NINO2 = rio::import(here::here("data", "REC44_2023.dta"))
+
+SALUD = rio::import(here::here("data", "CSALUD01_2023.dta"))
+```
+
+#Cambio de variables
+
+```{r}
+PERSONA$QSNUMERO    <- PERSONA$HVIDX
+
+MUJER$QSNUMERO  <- MUJER$HA0
+
+MUJER2$QSNUMERO  <- str_sub(MUJER2$CASEID,-2,-1)
+MUJER2$QSNUMERO  <- as.numeric(MUJER2$QSNUMERO)
+
+MUJER3$HHID      <- str_sub(MUJER3$CASEID,1,(str_length(MUJER3$CASEID)-3))
+MUJER3$QSNUMERO  <- str_sub(MUJER3$CASEID,-2,-1)
+MUJER3$QSNUMERO  <- as.numeric(MUJER3$QSNUMERO)
+
+MUJER4$HHID      <- str_sub(MUJER4$CASEID,1,(str_length(MUJER4$CASEID)-3))
+MUJER4$QSNUMERO  <- str_sub(MUJER4$CASEID,-2,-1)
+MUJER4$QSNUMERO  <- as.numeric(MUJER4$QSNUMERO)
+
+MUJER5$HHID      <- str_sub(MUJER5$CASEID,1,(str_length(MUJER5$CASEID)-3))
+MUJER5$QSNUMERO  <- str_sub(MUJER5$CASEID,-2,-1)
+MUJER5$QSNUMERO  <- as.numeric(MUJER5$QSNUMERO)
+
+NINO$HW1 = NINO$HC1
+NINO$HW2 = NINO$HC2
+NINO$HW3 = NINO$HC3
+NINO$HW53 = NINO$HC53
+NINO$QSNUMERO  <- NINO$HC60
+
+NINO2$HHID      <- str_sub(NINO2$CASEID,1,(str_length(NINO2$CASEID)-3))
+NINO2$QSNUMERO  <- str_sub(NINO2$CASEID,-2,-1)
+NINO2$QSNUMERO  <- as.numeric(NINO2$QSNUMERO)
+
+```
+
+#Union de datas
+
+```{r}
+#Solo los que se midieron. Filtro N°1
+NINO_F = filter(NINO, HC13 == 0)
+summary(NINO_F$HC2)
+NINO2_F = filter(NINO2, HW13 == 0)
+summary(NINO2_F$HW2)
+```
+
+
+```{r}
+BASE1 = left_join(MUJER, MUJER2, by = c("HHID", "QSNUMERO"))
+BASE2 = left_join(BASE1, MUJER4, by = c("HHID", "QSNUMERO"))
+BASE3 = left_join(BASE2, MUJER5, by = c("HHID", "QSNUMERO"))
+BASE4 = left_join(NINO_F, NINO2_F, by = c("HHID", "QSNUMERO","HW1", "HW2", "HW3"))#LA FORMULA MAGICA, LISTO PARA ANALIZAR, UNO AMBAS BASES DE NIÑOS
+BASE4$MIDX=BASE4$HWIDX
+BASE5 = left_join(BASE4, MUJER3, by = c("HHID", "QSNUMERO", "MIDX"))#UNO MADRES CON NIÑOS
+BASE6 <- left_join(HOGAR, VIVIENDA, by = "HHID")
+BASE7 <- left_join(BASE5, PERSONA, by = c("HHID","QSNUMERO"))
+BASE8 <- left_join(BASE7, BASE3, by = c("HHID","QSNUMERO"))
+BASE9 <- left_join(BASE8, SALUD, by = c("HHID","QSNUMERO"))
+endestc <- left_join(BASE9, BASE6, by = 'HHID')
+```
+
+```{r}
+rm(BASE1, BASE2, BASE3, BASE4, HOGAR, MUJER, MUJER2, PERSONA, VIVIENDA)
+rm(BASE5, BASE6, BASE7, BASE8, BASE9, MUJER3, MUJER4, MUJER5, SALUD)
+```
+
+#Analisis de datos y bases unidas
+Elección de variables
+1. Diseño de la muestra
+Conglomerado: HV001
+Estrato: HV022
+Factor ponderación hogar: HV005
+Factor ponderación mujer: V005
+2. Sociodemograficas del hogar
+Urbano / rural: HV025
+Altura: HV040
+Dominio: HV023
+Indice de riqueza: HV270
+Puntuación indice de riqueza: HV271
+3. Persona
+Relación de parentesco con el jefe del hogar: HV101
+Sexo: HV104
+Edad: HV105
+Estado civil: HV115
+Nacionalidad: QH25A
+3. Madre 15-49 años
+Resultado de entrevista individual: V015
+Estado civil: HA60 (buscar un mejor estado civil), HV115 (mejor)
+Nivel educativo mas alto aprobado: HA66
+Edad: HA1
+Peso: HA2 (kg)
+Talla: HA3 (centimetros)
+IMC: HA40
+Indice de Rohrer: HA41
+percentil talla edad: HA4
+Desviacion estandar Talla edad: HA5
+Talla/Edad porcentaje respecto a la mediana de referencia: HA6
+Peso/Talla desvio estándar (DHS): HA11
+Peso/Talla Porcentaje respecto a la mediana (DHS): HA12
+Peso/Talla Porcentaje respecto a la mediana (Foggarty): HA12A
+Peso/Talla Porcentaje respecto a la mediana (OMS): HA12B
+Hemoglobina: HA53 (g/dL-1 decimal)
+Resultado de medición de hemoglobina: HA55
+Hb ajustada por altitud (G/dl): HA56
+Nivel de anemia: HA57
+Resultado de entrevista individual a mujer: HA65
+¿Esta embarazada actualmente?: HA54
+4. Niño hasta 36 meses
+Edad: HC1
+Sexo: HC27
+Peso: HC2
+Altura: HC3
+Talla/Edad percentil: HC4
+Talla/Edad Desviación Estándar: HC5
+Talla/Edad porcentaje de la mediana de referencia: HC6
+Peso/Edad percentil: HC7
+Peso/Edad Desviación Estándar: HC8
+Peso/Edad porcentaje de la mediana de referencia: HC9
+Peso/Talla percentil: HC10
+Peso/Talla Desviación Estándar: HC11
+Peso/Talla Porcentaje de la mediana de referencia: HC12
+hemoglobina (g/dL-1 decimal): HC53
+Nivel de hemoglobina ajustado por altitud (g/dl-1 decimal): HC56
+Nivel de anemia: HC57
+Talla/Edad de la Desviación Estándar de la mediana de referencia (según la OMS): HC70
+Peso/Edad de la Desviación Estándar de la mediana de referencia (según la OMS): HC71
+Peso/Talla Desviación Estándar de la mediana de referencia (según la OMS): HC72
+Desviación Estándar del IMC (según la OMS): HC73
+Número de orden de la madre en el hogar: HC60
+#NECESITO
+MADRE
+1. Edad de primer parto: V212 (RE223132)
+2. ingesta de hierro/folato/vitA
+  2.1 hierro: m45 (TABLETAS, JARABE O INYECCION) / m46 (TIEMPO QUE RECIBIO HIERRO) (REC41)
+  2.2 dosis de vita los 2 meses despues del parto: M54 (REC41)
+3. visitas de atención prenatal/posnatal:
+  3.1 Atención prenatal: M14 (VISITAS PRENATALES POR EMBARAZO) (REC41)
+  3.2 Despues del parto tuvo algun chequeo o revisión medica: M66, M67 (TIEMPO) (REC41)
+  3.3. Tiempo despues del parto se realizo el control postnatal (M71) (REC41)
+4. paridad
+  4.1. Total de niños nacidos: V201 (RE223132)
+  4.2. Nacimientos en los ultimos cinco años: V208 (RE223132)
+5. parto por cesarea
+  5.1.: PARTO POR CESAREA: M17 (REC41)
+7. Seguro de salud: QS26 (CSALUD01)
+8. Estado de lactancia
+  8.1 Duración de la lactancia: M4 (REC41)
+  8.2.: Actualmente amamantando: V404 (REC42)
+  
+
+NIÑO
+1. consumo de vitamina A / hierro: no hay
+3. peso al nacer
+  3.1 TAMAÑO DEL NIÑO AL NACE: M18 (REC41)
+  3.2 PESO DEL NIÑO AL NACER
+    3.2.1 PESO DEL NIÑO AL NACER SEGUN RECUERDA: M19A (DE LA TARJETA, LO QUE RECUERDA, NO SABE) (REC41)
+4. Orden de nacimiento: NINO2 (HWIDX)
+
+
+Casa
+1. Jefe de la familia: HV218: NUMERO DE ORDEN DEL JEFE DE HOGAR
+2. sexo de cabeza de familia: hv219
+3. nUMERO DE NIÑOS MENORES DE 5 AÑOS: HV014
+4. nUMERO DE NIÑOS ELEGIBLES PARA ALTURA Y PESO: hv035
+```{r}
+names(endestc)
+View(endestc)
+view(endestc$M5)
+```
+
+
+```{r}
+attach(endestc)
+endestriple = data.frame(id                   = HHID,
+                         psu                  = HV001,
+                         stratum              = HV022,
+                         sample_weight_house  = HV005,
+                         sample_weight_women  = V005,
+                         urb_rur              = HV025,
+                         altitude             = HV040,
+                         departamento         = HV023,
+                         region_natural       = SHREGION,
+                         idx_riq              = HV270,
+                         punt_riq             = HV271,
+                         
+                         seguro_salud         = QS26,
+                         parentesco_jefe      = HV101,
+                         jefe_familia         = HV218,
+                         sexo_jefe            = HV219,
+                         
+                         numero_ninos5y       = HV014,
+                         sex_mother           = HV104,
+                         age_mother           = HV105,
+                         est_civ              = HV115,
+                         nacionalidad         = QH25A,
+                         lvl_educativo        = HV109,
+                         height_mother        = HA3,
+                         weight_mother        = HA2,
+                         bmi                  = HA40,
+                         idx_rohrer           = HA41,
+                         p_h_a_mother         = HA4,
+                         sd_h_a_mother        = HA5,
+                         hb_mother            = HA53,
+                         hb_alt_mother        = HA56,
+                         lvl_anemia           = HA57,
+                         res_entrevista_mother= HA65,
+                         pregnant             = HA54,
+                         primer_parto         = V212,
+                         hierro_embarazo      = M45,
+                         tiempo_hierro_embara = M46,
+                         atencion_prenatal    = M14,
+                         atencion_postnatal   = M71,
+                         tot_ninos_vivos      = V201,
+                         birth_last5y         = V208,
+                         parto_cesarea        = M17,
+                         actual_amamantando   = V404,
+                         tiempo_lactancia     = M4,
+                         meses_lactancia      = M5,
+                         age_child            = HC1,
+                         sex_child            = HC27,
+                         weight_child         = HC2,
+                         height_child         = HC3,
+                         sd_h_a_child         = HC70,
+                         sd_w_a_child         = HC71,
+                         sd_w_h_child         = HC72,
+                         sd_bmi_child         = HC73,
+                         hb_child             = HC53, 
+                         hb_alt_child         = HC56,
+                         lvl_anemia_child     = HC57,
+                         peso_al_nacer        = M19,
+                         tamano_percibido     = M18,
+                         orden_nacimiento     = HWIDX,
+                         durmio               = HV103,
+                         agua                 = HV201,
+                         desague              = HV205,
+                         electricidad         = HV206,
+                         combustible          = HV226,
+                         numero_madre         = HC60)
+detach(endestc)
+sum(NINO_F$HC60==995)
+sum(NINO_F$HC60==994)
+sum(NINO_F$HC60==993)
+sum(NINO_F$HC60==993) + sum(NINO_F$HC60==994)
+sum(NINO_F$HC60==993) + sum(NINO_F$HC60==994) + sum(NINO_F$HC60==995)
+```
+
+```{r}
+endestcm_madre <- filter(endestriple, pregnant!= 1 | is.na(pregnant)) # Descartamos a las gestantes
+```
+
+```{r}
+#NO PLAUSIBLES
+endestcm_madre$sd_h_a_child[which(endestcm_madre$sd_h_a_child > 500)] <- NA
+endestcm_madre$sd_h_a_child[which(endestcm_madre$sd_h_a_child < -500)] <- NA
+endestcm_madre$sd_w_h_child[which(endestcm_madre$sd_w_h_child > 500)] <- NA
+endestcm_madre$sd_w_h_child[which(endestcm_madre$sd_w_h_child < -500)] <- NA
+endestcm_madre$sd_w_a_child[which(endestcm_madre$sd_w_a_child > 500)] <- NA
+endestcm_madre$sd_w_a_child[which(endestcm_madre$sd_w_a_child < -500)] <- NA
+
+endestcm_madre$sd_h_a_child[which(endestcm_madre$sd_h_a_child >=9996)] <- NA
+endestcm_madre$sd_w_h_child[which(endestcm_madre$sd_w_h_child >=9996)] <- NA
+endestcm_madre$sd_w_a_child[which(endestcm_madre$sd_w_a_child >=9996)] <- NA
+#Limpieza de datos para desviaciónes estandar
+endestcm_madre <- endestcm_madre[which(!is.na(endestcm_madre$sd_h_a_child)),]
+endestcm_madre <- endestcm_madre[which(!is.na(endestcm_madre$sd_w_h_child)),]
+endestcm_madre <- endestcm_madre[which(!is.na(endestcm_madre$sd_w_a_child)),]
+summary(endestcm_madre$sd_h_a_child)
+sum(is.na(endestcm_madre$sd_h_a_child))
+sum(is.na(endestcm_madre$sd_w_h_child))
+sum(is.na(endestcm_madre$sd_w_a_child))
+```
+
+```{r}
+#SOBREPESO OBESIDAD MADRE
+endestcm_madre <- endestcm_madre %>% 
+  mutate(bmi_mother = (weight_mother/10)/((height_mother/10)^2)*10000)
+endestcm_madre$bmi_mother[which(endestcm_madre$bmi_mother > 60)]  <- NA
+endestcm_madre$bmi_mother[which(endestcm_madre$bmi_mother <= 10)] <- NA
+#Limpieza de datos para BMI
+endestcm_madre <- endestcm_madre[which(!is.na(endestcm_madre$bmi_mother)),]
+```
+
+```{r}
+set.seed(504)
+library(mice)
+library(haven)
+data <- endestcm_madre |>
+  dplyr::select(id, psu, stratum, sample_weight_house, urb_rur, region_natural, 
+         idx_riq, altitude, age_mother, sd_h_a_child, lvl_educativo, 
+         bmi_mother, primer_parto, tot_ninos_vivos, age_child, sex_child, 
+         sd_w_a_child, sd_w_h_child, hb_child, peso_al_nacer)
+
+data$id=haven::zap_labels(data$id)
+data$psu=haven::zap_labels(data$psu)
+data$stratum=haven::zap_labels(data$stratum)
+data$sample_weight_house=haven::zap_labels(data$sample_weight_house)
+data$age_mother=haven::zap_labels(data$age_mother)
+data$bmi_mother=haven::zap_labels(data$bmi_mother)
+data$primer_parto=haven::zap_labels(data$primer_parto)
+data$tot_ninos_vivos=haven::zap_labels(data$tot_ninos_vivos)
+data$age_child=haven::zap_labels(data$age_child)
+data$sd_h_a_child=haven::zap_labels(data$sd_h_a_child)
+data$sd_w_a_child=haven::zap_labels(data$sd_w_a_child)
+data$sd_w_h_child=haven::zap_labels(data$sd_w_h_child)
+data$hb_child=haven::zap_labels(data$hb_child)
+data$peso_al_nacer=haven::zap_labels(data$peso_al_nacer)
+data$altitude=haven::zap_labels(data$altitude)
+
+data$urb_rur=haven::as_factor(data$urb_rur)
+data$region_natural=haven::as_factor(data$region_natural)
+data$idx_riq=haven::as_factor(data$idx_riq)
+data$lvl_educativo=haven::as_factor(data$lvl_educativo)
+data$sex_child=haven::as_factor(data$sex_child)
+
+
+imputations <- parlmice(data, 5, maxit=5, cluster.seed = 504007)
+impdata=complete(imputations, action="long")
+
+impdata2=data.frame(impdata)
+
+```
+
+```{r}
+#valores no plausibles
+impdata2$bmi_mother[which(impdata2$bmi_mother > 60)]  <- NA
+impdata2$bmi_mother[which(impdata2$bmi_mother <= 10)] <- NA
+
+impdata2 <- impdata2[which(!is.na(impdata$bmi_mother)),]
+
+impdata2$sd_h_a_child[which(impdata2$sd_h_a_child > 500)] <- NA
+impdata2$sd_h_a_child[which(impdata2$sd_h_a_child < -500)] <- NA
+impdata2$sd_w_h_child[which(impdata2$sd_w_h_child > 500)] <- NA
+impdata2$sd_w_h_child[which(impdata2$sd_w_h_child < -500)] <- NA
+impdata2$sd_w_a_child[which(impdata2$sd_w_a_child > 500)] <- NA
+impdata2$sd_w_a_child[which(impdata2$sd_w_a_child < -500)] <- NA
+impdata2 <- impdata2[which(!is.na(impdata2$sd_h_a_child)),]
+impdata2 <- impdata2[which(!is.na(impdata2$sd_w_h_child)),]
+impdata2 <- impdata2[which(!is.na(impdata2$sd_w_a_child)),]
+
+
+```
+
+```{r}
+
+impdata2$region_natural[impdata2$region_natural == "Lima metropolitana"] <- "Resto Costa" 
+
+
+cut_agem=c(12, 19, 30, 40, 50)
+etiq_agem=c("0", "1", "2","3")
+agem_cat=cut(impdata2$age_mother, breaks = cut_agem, labels = etiq_agem, right=FALSE)
+impdata2$agem_cat=with(impdata2, agem_cat)
+impdata2$agem_cat2=as.numeric(impdata2$agem_cat)-1
+
+cut_agemp=c(9, 19, 31, 47)
+etiq_agemp=c("0", "1", "2")
+agemp_cat=cut(impdata2$primer_parto, breaks = cut_agemp, labels = etiq_agemp, right=FALSE) 
+impdata2$agemp_cat=with(impdata2, agemp_cat)
+impdata2$agemp_cat2=as.numeric(impdata2$agemp_cat)-1
+
+cut_num_child=c(0, 3, 5, 20)
+etiq_num_child=c("0", "1", "2")
+num_child_cat=cut(impdata2$tot_ninos_vivos, breaks = cut_num_child, labels = etiq_num_child, right=FALSE) 
+impdata2$num_child_cat=with(impdata2, num_child_cat)
+impdata2$num_child_cat2=as.numeric(impdata2$num_child_cat)-1
+
+summary(impdata2$lvl_educativo)
+
+str(impdata2$lvl_educativo)
+impdata2$lvl_educativo[which(impdata2$lvl_educativo=="Sin educación")] <- "Primaria incompleta"
+
+impdata2$lvl_educativo[which(impdata2$lvl_educativo=="Secundaria incompleta")] <- "Primaria completa"
+
+impdata2$bmi_mother <- as.numeric(impdata2$bmi_mother)
+
+bmi_mother_cat <- cut(impdata2$bmi_mother, breaks = cut_bmi, labels = etiq_bmi, right = FALSE)
+
+cut_bmi=c(0, 18.5, 25, 30, 100)
+etiq_bmi=c("0", "1", "2", "3")
+bmi_mother_cat=cut(impdata2$bmi_mother, breaks = cut_bmi, labels = etiq_bmi, right=FALSE) 
+impdata2$bmi_mother_cat=with(impdata2, bmi_mother_cat)
+impdata2$bmi_mother_cat2=as.numeric(impdata2$bmi_mother_cat)
+
+cut_agec=c(5, 13, 25, 37, 49, 60)
+etiq_agec=c("0", "1", "2","3", "4")
+agec_cat=cut(impdata2$age_child, breaks = cut_agec, labels = etiq_agec, right=FALSE) 
+impdata2$agec_cat=with(impdata2, agec_cat)
+impdata2$agec_cat2=as.numeric(impdata2$agec_cat)-1
+
+
+cut_weight_born=c(0, 2500, 4000, 6000)
+etiq_weight_born=c("0", "1", "2")
+weight_born_cat=cut(impdata2$peso_al_nacer, breaks = cut_weight_born, labels = etiq_weight_born, right=FALSE) 
+impdata2$weight_born_cat=with(impdata2, weight_born_cat)
+impdata2$weight_born_cat2=as.numeric(impdata2$weight_born_cat)-1
+summary(impdata2$weight_born_cat2)
+
+
+
+```
+
+```{r}
+impdata2$hb_new=(impdata2$hb_child)-(0.0056384*impdata2$altitude)+(0.0000003*impdata2$altitude*impdata2$altitude)
+
+impdata2 <- impdata2 %>% 
+  mutate(anemia_new = ifelse(hb_new <105 & age_child<24, 1,
+                        ifelse(hb_new <110 & age_child>=24, 1,
+                              ifelse(hb_new >=105 & age_child<24, 0,
+                                   ifelse(hb_new >=110 & age_child>=24, 0, NA)))))
+
+impdata2$anemia_newcat=as.factor(impdata2$anemia_new)
+summary(impdata2$anemia_newcat)
+
+impdata2 <- impdata2 %>%
+  mutate(mothero_o =
+           case_when(
+             bmi_mother>=25 ~ 1 ,
+             bmi_mother<25 ~ 0)) %>%
+  set_value_labels(mothero_o  = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(mothero_o  = "Mother overweight/obese")
+
+impdata2 <- impdata2 %>%
+  mutate(stunting =
+           case_when(
+             sd_h_a_child< -200  ~ 1 ,
+             sd_h_a_child>= -200 ~ 0 ,
+             sd_h_a_child>=9996 ~ 99)) %>%
+  replace_with_na(replace = list(stunting = c(99))) %>%
+  set_value_labels(stunting = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(stunting = "Stunted child under 5 years")
+
+impdata2 <- impdata2 %>%
+  mutate(wasting =
+           case_when(
+             sd_w_h_child< -200  ~ 1 ,
+             sd_w_h_child>= -200 ~ 0 ,
+             sd_w_h_child>=9996 ~ 99)) %>%
+  replace_with_na(replace = list(wasting = c(99))) %>%
+  set_value_labels(wasting = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(wasting = "Wasted child under 5 years")
+
+impdata2 <- impdata2 %>%
+  mutate(underweight =
+           case_when(
+             sd_w_a_child< -200  ~ 1 ,
+             sd_w_a_child>= -200 ~ 0 ,
+             sd_w_a_child>=9996 ~ 99)) %>%
+  replace_with_na(replace = list(underweight = c(99))) %>%
+  set_value_labels(underweight = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(underweight = "Underweight child under 5 years")
+
+
+
+impdata2$desnutrition=(impdata2$stunting==1) | (impdata2$wasting==1) | (impdata2$underweight==1)  #Se filtra para hipertensión
+summary(impdata2$desnutrition)
+impdata2$desnutrition[which(impdata2$desnutrition==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+impdata2$desnutrition[which(impdata2$desnutrition==TRUE)]  <- 1
+summary(impdata2$desnutrition)
+impdata2$desnutrition2=as.factor(impdata2$desnutrition)
+
+#TRIPLE CARGA
+impdata2$triple_burden=(impdata2$desnutrition==1) & (impdata2$anemia_new==1) & (impdata2$mothero_o==1)
+summary(impdata2$triple_burden)
+impdata2$triple_burden[which(impdata2$triple_burden==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+impdata2$triple_burden[which(impdata2$triple_burden==TRUE)]  <- 1
+summary(impdata2$triple_burden)
+impdata2$triple_burden2=as.factor(impdata2$triple_burden)
+summary(impdata2$triple_burden2)
+str(impdata2$triple_burden2)
+
+```
+
+```{r}
+library(mitools)
+allimputations = imputationList(list(
+  subset(impdata2, subset = .imp==1),
+  subset(impdata2, subset = .imp==2),
+  subset(impdata2, subset = .imp==3),
+  subset(impdata2, subset = .imp==4),
+  subset(impdata2, subset = .imp==5)))
+str(allimputations)
+
+m = 5
+set.seed(123)
+allimputations=imputationList(lapply(1:m, 
+                                     function(n)
+                                       subset(impdata2,subset = .imp==n)))
+
+summary(allimputations)
+
+```
+```{r}
+data.list=vector("list",m)
+model.formula=as.formula("I(triple_burden2=='1')~ weight_born_cat+age_mother")
+
+w.design1=svydesign(ids = ~psu, weights =~sample_weight_house, strata=~stratum,
+                    data=allimputations,nest=TRUE)
+options(survey.adjust.domain.lonely=TRUE)
+options(survey.lonely.psu="adjust")
+fits=with(w.design1, svyglm(triple_burden~urb_rur+region_natural+idx_riq+lvl_educativo+agemp_cat+num_child_cat+agec_cat+weight_born_cat, family = quasibinomial))
+
+pooled.estimates=MIcombine(fits)
+sum.pooled=summary(pooled.estimates)
+exp(sum.pooled[,1])
+```
+
+```{r}
+OR=round(exp(pooled.estimates$coefficients),2)
+OR= as.data.frame(OR)
+CI=round(exp(confint(pooled.estimates)),2)
+sig= (CI[,1]<1&CI[,2]>1)
+sig=ifelse(sig==F,"*","")
+OR=cbind(OR,CI,sig)
+OR
+```
+
+```{r}
+library(table1)
+library(gtsummary)
+options(survey.adjust.domain.lonely=TRUE)
+options(survey.lonely.psu="adjust")
+w.design1=svydesign(ids = ~psu, weights =~sample_weight_house, strata=~stratum,
+                    data=endestcm)
+fits=svyglm(triple_burden~urb_rur2+region_natural2+idx_riq2+lvl_educativo2+agemp_cat+num_child_cat+agec_cat+weight_born_cat, family = quasibinomial, design = w.design1)
+multivariable <-   tbl_regression(fits,
+      exponentiate = TRUE,    
+      pvalue_fun = ~style_pvalue(.x, digits = 3)) 
+multivariable
+library(performance)
+check_collinearity(fits)
+```
+
+```{r}
+endestcm_madre = filter(endestcm_madre, !is.na(hb_child))
+
+endestcm_madre=
+  endestcm_madre %>%
+    group_by(id) %>%
+    slice_min(age_child) %>%
+    ungroup
+
+summary(endestcm$age_mother)
+```
+
+
+```{r}
+endestcm = endestcm_madre
+sum(duplicated(endestcm$id))
+```
+
+mas de 1 hijo en casa
+```{r}
+endestcm=
+  endestcm %>%
+    group_by(id) %>%
+    slice_min(age_child) %>%
+    ungroup
+
+summary(endestcm$age_mother)
+```
+
+```{r}
+view(endestcm_madre)
+```
+
+
+#SOCIODEMOGRAFICAS DEL HOGAR
+```{r}
+#VARIABLES SOCIODEMOGRAFICAS
+str(endestcm$urb_rur)
+endestcm$urb_rur[which(endestcm$urb_rur==1)] <- 0
+endestcm$urb_rur[which(endestcm$urb_rur==2)] <- 1
+endestcm$urb_rur2=as.factor(endestcm$urb_rur)
+summary(endestcm$urb_rur)
+summary(endestcm$urb_rur2)
+#cambio de región natural
+endestcm$region_natural[endestcm$region_natural == 1] <- 2 # convert lima to all coast
+endestcm$region_natural[which(endestcm$region_natural==2)] <- 0
+endestcm$region_natural[which(endestcm$region_natural==3)] <- 1
+endestcm$region_natural[which(endestcm$region_natural==4)] <- 2
+endestcm$region_natural2=as.factor(endestcm$region_natural)
+summary(endestcm$region_natural)
+summary(endestcm$region_natural2)
+#cambio idx riq
+str(endestcm$idx_riq)
+endestcm$idx_riq[which(endestcm$idx_riq==1)] <- 0
+endestcm$idx_riq[which(endestcm$idx_riq==2)] <- 1
+endestcm$idx_riq[which(endestcm$idx_riq==3)] <- 2
+endestcm$idx_riq[which(endestcm$idx_riq==4)] <- 3
+endestcm$idx_riq[which(endestcm$idx_riq==5)] <- 4
+endestcm$idx_riq2=as.factor(endestcm$idx_riq)
+summary(endestcm$idx_riq)
+summary(endestcm$idx_riq2)
+#creacion variable altura
+cut_alt=c(0, 2500, 7000)
+etiq_alt=c("0", "1")
+high_alt=cut(endestcm$altitude, breaks = cut_alt, labels = etiq_alt, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$high_alt=with(endestcm, high_alt)
+endestcm$high_alt2=as.factor(endestcm$high_alt)
+summary(endestcm$high_alt)
+summary(endestcm$high_alt2)
+
+#Servicio de agua mejorado
+str(endestcm$agua)
+endestcm$agua[which(endestcm$agua==11)] <- 0 #Mejorado
+endestcm$agua[which(endestcm$agua==12)] <- 0 
+endestcm$agua[which(endestcm$agua==13)] <- 0
+endestcm$agua[which(endestcm$agua==21)] <- 0
+endestcm$agua[which(endestcm$agua==22)] <- 1 #No mejorado
+endestcm$agua[which(endestcm$agua==41)] <- 0
+endestcm$agua[which(endestcm$agua==43)] <- 1
+endestcm$agua[which(endestcm$agua==51)] <- 0
+endestcm$agua[which(endestcm$agua==61)] <- 0
+endestcm$agua[which(endestcm$agua==71)] <- 0
+endestcm$agua[which(endestcm$agua==96)] <- 1
+endestcm$agua2=as.factor(endestcm$agua)
+summary(endestcm$agua)
+summary(endestcm$agua2)
+
+#Servicio de desague
+str(endestcm$desague)
+endestcm$desague[which(endestcm$desague==11)] <- 0 #Mejorado
+endestcm$desague[which(endestcm$desague==12)] <- 0
+endestcm$desague[which(endestcm$desague==21)] <- 0
+endestcm$desague[which(endestcm$desague==22)] <- 0
+endestcm$desague[which(endestcm$desague==23)] <- 1 #No mejorado
+endestcm$desague[which(endestcm$desague==24)] <- 1
+endestcm$desague[which(endestcm$desague==31)] <- 1
+endestcm$desague[which(endestcm$desague==32)] <- 1
+endestcm$desague[which(endestcm$desague==96)] <- 1
+endestcm$desague2=as.factor(endestcm$desague)
+summary(endestcm$desague)
+summary(endestcm$desague2)
+
+#Servicio de electricidad
+endestcm$electricidad2=as.factor(endestcm$electricidad)
+summary(endestcm$electricidad)
+summary(endestcm$electricidad2)
+
+#Combustible 
+str(endestcm$combustible)
+endestcm$combustible[which(endestcm$combustible==1)] <- 0#Limpio
+endestcm$combustible[which(endestcm$combustible==2)] <- 0#
+endestcm$combustible[which(endestcm$combustible==3)] <- 0
+endestcm$combustible[which(endestcm$combustible==5)] <- 1#Sucio
+endestcm$combustible[which(endestcm$combustible==6)] <- 1
+endestcm$combustible[which(endestcm$combustible==7)] <- 1
+endestcm$combustible[which(endestcm$combustible==8)] <- 1
+endestcm$combustible[which(endestcm$combustible==9)] <- 1
+endestcm$combustible[which(endestcm$combustible==10)] <- 1
+endestcm$combustible[which(endestcm$combustible==11)] <- 1
+endestcm$combustible[which(endestcm$combustible==96)] <- 1
+endestcm$combustible[which(endestcm$combustible==95)] <- 1
+endestcm$combustible2=as.factor(endestcm$combustible)
+summary(endestcm$combustible)
+summary(endestcm$combustible2)
+
+```
+#VARIABLES CARACTERISTICA DE LA MADRE
+
+```{r}
+#EDAD DE LA MADRE
+summary(endestcm$age_mother)
+cut_agem=c(12, 19, 30, 40, 50)
+etiq_agem=c("0", "1", "2","3")
+agem_cat=cut(endestcm$age_mother, breaks = cut_agem, labels = etiq_agem, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$agem_cat=with(endestcm, agem_cat)
+endestcm$agem_cat2=as.numeric(endestcm$agem_cat)-1
+summary(endestcm$agem_cat)
+summary(endestcm$agem_cat2)
+str(endestcm$agem_cat)
+str(endestcm$agem_cat2)
+
+#EDAD DEL PRIMER PARTO
+cut_agemp=c(9, 19, 31, 47)
+etiq_agemp=c("0", "1", "2")
+agemp_cat=cut(endestcm$primer_parto, breaks = cut_agemp, labels = etiq_agemp, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$agemp_cat=with(endestcm, agemp_cat)
+endestcm$agemp_cat2=as.numeric(endestcm$agemp_cat)-1
+summary(endestcm$agemp_cat)
+summary(endestcm$agemp_cat2)
+str(endestcm$agemp_cat)
+str(endestcm$agemp_cat2)
+
+#NUMERO DE HIJOS VIVOS (PARIDAD)
+cut_num_child=c(0, 3, 5, 20)
+etiq_num_child=c("0", "1", "2")
+num_child_cat=cut(endestcm$tot_ninos_vivos, breaks = cut_num_child, labels = etiq_num_child, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$num_child_cat=with(endestcm, num_child_cat)
+endestcm$num_child_cat2=as.numeric(endestcm$num_child_cat)-1
+summary(endestcm$num_child_cat)
+summary(endestcm$num_child_cat2)
+str(endestcm$num_child_cat)
+str(endestcm$num_child_cat2)
+
+#ESTADO CIVIL
+endestcm$est_civ[which(endestcm$est_civ==2)] <- 1 #recategorización de estado civil, en soltero, casado/conviviente, y viudo/divorciado/
+endestcm$est_civ[which(endestcm$est_civ==3)] <- 0 #No casado
+endestcm$est_civ[which(endestcm$est_civ==4)] <- 0
+endestcm$est_civ[which(endestcm$est_civ==5)] <- 0
+endestcm$est_civ2=as.factor(endestcm$est_civ)
+summary(endestcm$est_civ)
+summary(endestcm$est_civ2)
+
+#NIVEL EDUCATIVO
+endestcm$lvl_educativo[which(endestcm$lvl_educativo==0)] <- 0 #Renombramos las variables, en este caso son 4 categorias: Sin educación, primaria, secundaria y superior. Primaria incompleta o secundaria incompleta fueron considerados con un nivel inferior
+endestcm$lvl_educativo[which(endestcm$lvl_educativo==1)] <- 0
+endestcm$lvl_educativo[which(endestcm$lvl_educativo==2)] <- 1
+endestcm$lvl_educativo[which(endestcm$lvl_educativo==3)] <- 1
+endestcm$lvl_educativo[which(endestcm$lvl_educativo==4)] <- 2
+endestcm$lvl_educativo[which(endestcm$lvl_educativo==5)] <- 3
+endestcm$lvl_educativo2=as.factor(endestcm$lvl_educativo)
+summary(endestcm$lvl_educativo)
+summary(endestcm$lvl_educativo2)
+
+#cambio seguro #revisar por que tantos NA
+str(endestcm$seguro_salud)
+endestcm$seguro_salud[which(endestcm$seguro_salud==2)] <- 0
+endestcm$seguro_salud2=as.factor(endestcm$seguro_salud)
+summary(endestcm$seguro_salud)
+summary(endestcm$seguro_salud2)
+
+#Jefe de familia
+str(endestcm$parentesco_jefe)
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==2)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==3)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==4)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==5)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==6)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==7)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==8)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==10)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==11)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==12)] <- 0
+endestcm$parentesco_jefe[which(endestcm$parentesco_jefe==15)] <- 0
+endestcm$parentesco_jefe2=as.factor(endestcm$parentesco_jefe)
+summary(endestcm$parentesco_jefe)
+summary(endestcm$parentesco_jefe2)
+
+#CATEGORIZACIÓN IMC
+cut_bmi=c(0, 18.5, 25, 30, 100)
+etiq_bmi=c("0", "1", "2", "3")
+bmi_mother_cat=cut(endestcm$bmi_mother, breaks = cut_bmi, labels = etiq_bmi, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$bmi_mother_cat=with(endestcm, bmi_mother_cat)
+endestcm$bmi_mother_cat2=as.numeric(endestcm$bmi_mother_cat)
+summary(endestcm$bmi_mother_cat)
+summary(endestcm$bmi_mother_cat2)
+str(endestcm$bmi_mother_cat)
+str(endestcm$bmi_mother_cat2)
+```
+
+#CARACTERISTICAS DE LOS NIÑOS
+
+```{r}
+#EDAD EN MESES DEL NIÑO
+summary(endestcm$age_child)
+cut_agec=c(5, 13, 25, 37, 49, 60)
+etiq_agec=c("0", "1", "2","3", "4")
+agec_cat=cut(endestcm$age_child, breaks = cut_agec, labels = etiq_agec, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$agec_cat=with(endestcm, agec_cat)
+endestcm$agec_cat2=as.numeric(endestcm$agec_cat)-1
+summary(endestcm$agec_cat)
+summary(endestcm$agec_cat2)
+str(endestcm$agec_cat)
+str(endestcm$agec_cat2)
+
+#SEXO NIÑO
+endestcm$sex_child[which(endestcm$sex_child==2)] <- 0
+endestcm$sex_child2=as.factor(endestcm$sex_child)
+summary(endestcm$sex_child)
+summary(endestcm$sex_child2)
+
+#SUPLEMENTO DE HIERRO DURANTE EMBARAZO
+endestcm$hierro_embarazo[which(endestcm$hierro_embarazo==0)] <- 0 
+endestcm$hierro_embarazo[which(endestcm$hierro_embarazo==1)] <- 1
+endestcm$hierro_embarazo[which(endestcm$hierro_embarazo==8)] <- 0
+endestcm$hierro_embarazo2=as.factor(endestcm$hierro_embarazo)
+summary(endestcm$hierro_embarazo)
+summary(endestcm$hierro_embarazo2)
+
+#PESO AL NACER
+endestcm_madre$peso_al_nacer[which(endestcm_madre$peso_al_nacer==9996)] <- NA
+endestcm_madre$peso_al_nacer[which(endestcm_madre$peso_al_nacer==9998)] <- NA
+
+endestcm$peso_al_nacer[which(endestcm$peso_al_nacer==9996)] <- NA
+endestcm$peso_al_nacer[which(endestcm$peso_al_nacer==9998)] <- NA
+sum(endestcm$peso_al_nacer==9998)
+summary(endestcm$peso_al_nacer)
+cut_weight_born=c(0, 2500, 4000, 6000)
+etiq_weight_born=c("0", "1", "2")
+weight_born_cat=cut(endestcm$peso_al_nacer, breaks = cut_weight_born, labels = etiq_weight_born, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$weight_born_cat=with(endestcm, weight_born_cat)
+endestcm$weight_born_cat2=as.numeric(endestcm$weight_born_cat)-1
+summary(endestcm$weight_born_cat)
+summary(endestcm$weight_born_cat2)
+str(endestcm$weight_born_cat)
+str(endestcm$weight_born_cat2)
+
+#TAMAÑO PERCIBIDO AL NACER
+endestcm$tamano_percibido[which(endestcm$tamano_percibido==4)] <- 0 
+endestcm$tamano_percibido[which(endestcm$tamano_percibido==5)] <- 0#pequeno
+endestcm$tamano_percibido[which(endestcm$tamano_percibido==1)] <- 2#grande
+endestcm$tamano_percibido[which(endestcm$tamano_percibido==3)] <- 1#normal
+endestcm$tamano_percibido[which(endestcm$tamano_percibido==8)] <- NA
+endestcm$tamano_percibido2=as.factor(endestcm$tamano_percibido)
+summary(endestcm$tamano_percibido)
+summary(endestcm$tamano_percibido2)
+
+#ACTUALMENTE AMAMANTANDO
+str(endestcm$actual_amamantando)
+endestcm$actual_amamantando2=as.factor(endestcm$actual_amamantando)
+
+#Lactancia hasta 2 años
+endestcm$tiempo_lactancia[endestcm$tiempo_lactancia==98] <-0
+endestcm$tiempo_lactancia[endestcm$tiempo_lactancia==94] <-0
+cut_lact_2=c(-1, 24, 90, 100)
+etiq_lac_2=c("0", "1", "2")
+lac_2v=cut(endestcm$tiempo_lactancia, breaks = cut_lact_2, labels = etiq_lac_2, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$lac_2= with(endestcm, lac_2v)
+endestcm$lac_2f=as.factor(endestcm$lac_2)
+summary(endestcm$lac_2)
+summary(endestcm$lac_2f)
+
+```
+
+
+#CATEGORIZACIÓN DESNUTRICIÓN
+```{r}
+#RETRAZO EN EL CRECIMIENTO
+endestcm <- endestcm %>%
+  mutate(stunting =
+           case_when(
+             sd_h_a_child< -200  ~ 1 ,
+             sd_h_a_child>= -200 ~ 0 ,
+             sd_h_a_child>=9996 ~ 99)) %>%
+  replace_with_na(replace = list(stunting = c(99))) %>%
+  set_value_labels(stunting = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(stunting = "Stunted child under 5 years")
+summary(endestcm$stunting)
+str(endestcm$stunting)
+```
+
+```{r}
+#EMACIACIÓN
+endestcm <- endestcm %>%
+  mutate(wasting =
+           case_when(
+             sd_w_h_child< -200  ~ 1 ,
+             sd_w_h_child>= -200 ~ 0 ,
+             sd_w_h_child>=9996 ~ 99)) %>%
+  replace_with_na(replace = list(wasting = c(99))) %>%
+  set_value_labels(wasting = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(wasting = "Wasted child under 5 years")
+```
+
+
+
+```{r}
+#Bajo peso
+endestcm <- endestcm %>%
+  mutate(underweight =
+           case_when(
+             sd_w_a_child< -200  ~ 1 ,
+             sd_w_a_child>= -200 ~ 0 ,
+             sd_w_a_child>=9996 ~ 99)) %>%
+  replace_with_na(replace = list(underweight = c(99))) %>%
+  set_value_labels(underweight = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(underweight = "Underweight child under 5 years")
+summary(endestcm$underweight)
+```
+
+```{r}
+#Peso normal
+cut_peso=c(-900, -200, 200.1, 994)
+etiq_peso=c("0", "1", "2")
+peso_talla=cut(endestcm$sd_w_h_child, breaks = cut_peso, labels = etiq_peso, right=FALSE) #con cut() categorizamos los valores, con breaks se indica los valores donde se deben cortar, y labels es para darle nombre a las categorias, debe ser en orden. right=T significa que el intervalo esta abierto a la izquierda y cerrado a la derecha (x, y] osea considera el valor puesto en el break, si right=F sera [x, y) osea no considerara el valor puesto en el break
+endestcm$peso_talla=with(endestcm, peso_talla)
+endestcm$peso_talla2=as.factor(endestcm$peso_talla)
+summary(endestcm$peso_talla)
+summary(endestcm$peso_talla2)
+
+```
+
+```{r}
+#Sobrepeso y obesidad
+endestcm <- endestcm %>%
+  mutate(overweight_child =
+           case_when(
+             sd_w_h_child > 200  ~ 1 ,
+             sd_w_h_child <= 200 ~ 0 ,
+             sd_w_h_child>=9996 ~ 99)) %>%
+  replace_with_na(replace = list(overweight_child = c(99))) %>%
+  set_value_labels(overweight_child = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(overweight_child = "Overweigth child under 5 years")
+```
+
+```{r}
+summary(endestcm$hb_child)
+summary(endestcm$hb_alt_child)
+```
+
+```{r}
+#Anemia corregida OMS
+endestcm <- endestcm %>%
+  mutate(anemia_oms =
+           case_when(
+             hb_alt_child<110 ~ 1 ,
+             hb_alt_child>=110 ~ 0)) %>%
+  set_value_labels(anemia_oms = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(anemia_oms = "Any anemia - child 6-59 months")
+
+
+endestcm_madre = filter(endestcm_madre, !is.na(hb_child))
+endestcm$hb_new=(endestcm$hb_child)-(0.0056384*endestcm$altitude)+(0.0000003*endestcm$altitude*endestcm$altitude)
+summary(endestcm$hb_alt_child)
+summary(endestcm$hb_new)
+
+endestcm <- endestcm %>% 
+  mutate(anemia_new = ifelse(hb_new <105 & age_child<24, 1,
+                        ifelse(hb_new <110 & age_child>=24, 1,
+                              ifelse(hb_new >=105 & age_child<24, 0,
+                                   ifelse(hb_new >=110 & age_child>=24, 0, NA)))))
+
+endestcm$anemia_newcat=as.factor(endestcm$anemia_new)
+summary(endestcm$anemia_newcat)
+```
+
+
+```{r}
+#MADRE CON SOBREPESO U OBESIDAD
+endestcm <- endestcm %>%
+  mutate(mothero_o =
+           case_when(
+             bmi_mother>=25 ~ 1 ,
+             bmi_mother<25 ~ 0)) %>%
+  set_value_labels(mothero_o  = c("Yes" = 1, "No"=0  )) %>%
+  set_variable_labels(mothero_o  = "Mother overweight/obese")
+str(endestcm$mothero_o)
+```
+
+```{r}
+#VARIABLE DESNUTRICIÓN
+endestcm$desnutrition=(endestcm$stunting==1) | (endestcm$wasting==1) | (endestcm$underweight==1)  #Se filtra para hipertensión
+summary(endestcm$desnutrition)
+endestcm$desnutrition[which(endestcm$desnutrition==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$desnutrition[which(endestcm$desnutrition==TRUE)]  <- 1
+summary(endestcm$desnutrition)
+endestcm$desnutrition2=as.factor(endestcm$desnutrition)
+summary(endestcm$desnutrition2)
+str(endestcm$desnutrition2)
+```
+
+#COMBINACIONES
+```{r}
+#OM/SC
+endestcm$om_sc=(endestcm$mothero_o==1) & (endestcm$stunting==1)   #Se filtra para hipertensión
+summary(endestcm$om_sc)
+endestcm$om_sc[which(endestcm$om_sc==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$om_sc[which(endestcm$om_sc==TRUE)]  <- 1
+summary(endestcm$om_sc)
+endestcm$om_sc2=as.factor(endestcm$om_sc)
+summary(endestcm$om_sc2)
+str(endestcm$om_sc2)
+
+#MN/SC
+endestcm$mn_sc=(endestcm$mothero_o==0) & (endestcm$stunting==1)   #Se filtra para hipertensión
+summary(endestcm$mn_sc)
+endestcm$mn_sc[which(endestcm$mn_sc==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$mn_sc[which(endestcm$mn_sc==TRUE)]  <- 1
+summary(endestcm$mn_sc)
+endestcm$mn_sc2=as.factor(endestcm$mn_sc)
+summary(endestcm$mn_sc2)
+str(endestcm$mn_sc2)
+
+
+#OM/WC
+endestcm$om_wc=(endestcm$mothero_o==1) & (endestcm$wasting==1)
+summary(endestcm$om_wc)
+endestcm$om_wc[which(endestcm$om_wc==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$om_wc[which(endestcm$om_wc==TRUE)]  <- 1
+summary(endestcm$om_wc)
+endestcm$om_wc2=as.factor(endestcm$om_wc)
+summary(endestcm$om_wc2)
+str(endestcm$om_wc2)	
+
+#MN/WC
+endestcm$mn_wc=(endestcm$mothero_o==0) & (endestcm$wasting==1)
+summary(endestcm$mn_wc)
+endestcm$mn_wc[which(endestcm$mn_wc==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$mn_wc[which(endestcm$mn_wc==TRUE)]  <- 1
+summary(endestcm$mn_wc)
+endestcm$mn_wc2=as.factor(endestcm$mn_wc)
+summary(endestcm$mn_wc2)
+str(endestcm$mn_wc2)	
+
+
+#OM/UC
+endestcm$om_uc=(endestcm$mothero_o==1) & (endestcm$underweight==1)   #Se filtra para hipertensión
+summary(endestcm$om_uc)
+endestcm$om_uc[which(endestcm$om_uc==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$om_uc[which(endestcm$om_uc==TRUE)]  <- 1
+summary(endestcm$om_uc)
+endestcm$om_uc2=as.factor(endestcm$om_uc)
+summary(endestcm$om_uc2)
+str(endestcm$om_uc2)	
+
+#MN/UC
+endestcm$mn_uc=(endestcm$mothero_o==0) & (endestcm$underweight==1)   #Se filtra para hipertensión
+summary(endestcm$mn_uc)
+endestcm$mn_uc[which(endestcm$mn_uc==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$mn_uc[which(endestcm$mn_uc==TRUE)]  <- 1
+summary(endestcm$mn_uc)
+endestcm$mn_uc2=as.factor(endestcm$mn_uc)
+summary(endestcm$mn_uc2)
+str(endestcm$mn_uc2)	
+
+
+#OM/AC
+endestcm$om_ac=(endestcm$mothero_o==1) & (endestcm$anemia_new==1)   #Se filtra para hipertensión
+summary(endestcm$om_ac)
+endestcm$om_ac[which(endestcm$om_ac==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$om_ac[which(endestcm$om_ac==TRUE)]  <- 1
+summary(endestcm$om_ac)
+endestcm$om_ac2=as.factor(endestcm$om_ac)
+summary(endestcm$om_ac2)
+str(endestcm$om_ac2)	
+
+#MN/AC
+endestcm$mn_ac=(endestcm$mothero_o==0) & (endestcm$anemia_new==1)   #Se filtra para hipertensión
+summary(endestcm$mn_ac)
+endestcm$mn_ac[which(endestcm$mn_ac==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$mn_ac[which(endestcm$mn_ac==TRUE)]  <- 1
+summary(endestcm$mn_ac)
+endestcm$mn_ac2=as.factor(endestcm$mn_ac)
+summary(endestcm$mn_ac2)
+str(endestcm$mn_ac2)
+
+#MADRE BN Y CHILD NORMAL
+endestcm$mn_cn=(endestcm$mothero_o==0) & (endestcm$peso_talla==1)
+summary(endestcm$mn_cn)
+endestcm$mn_cn[which(endestcm$mn_cn==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$mn_cn[which(endestcm$mn_cn==TRUE)]  <- 1
+summary(endestcm$mn_cn)
+endestcm$mn_cn2=as.factor(endestcm$mn_cn)
+summary(endestcm$mn_cn2)
+str(endestcm$mn_cn2)
+
+#MADRE OO Y CHILD NORMAL
+endestcm$mo_cn=(endestcm$mothero_o==1) & (endestcm$peso_talla==1)
+summary(endestcm$mo_cn)
+endestcm$mo_cn[which(endestcm$mo_cn==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recnrdar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$mo_cn[which(endestcm$mo_cn==TRUE)]  <- 1
+summary(endestcm$mo_cn)
+endestcm$mo_cn2=as.factor(endestcm$mo_cn)
+summary(endestcm$mo_cn2)
+str(endestcm$mo_cn2)
+
+
+
+#MADRE BN Y CHILD OO
+endestcm$mn_co=(endestcm$mothero_o==0) & (endestcm$overweight_child==1)
+summary(endestcm$mn_co)
+endestcm$mn_co[which(endestcm$mn_co==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$mn_co[which(endestcm$mn_co==TRUE)]  <- 1
+summary(endestcm$mn_co)
+endestcm$mn_co2=as.factor(endestcm$mn_co)
+summary(endestcm$mn_co2)
+str(endestcm$mn_co2)
+
+
+#MADRE OO Y CHILD OO
+endestcm$mo_co=(endestcm$mothero_o==1) & (endestcm$overweight_child==1)
+summary(endestcm$mo_co)
+endestcm$mo_co[which(endestcm$mo_co==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$mo_co[which(endestcm$mo_co==TRUE)]  <- 1
+summary(endestcm$mo_co)
+endestcm$mo_co2=as.factor(endestcm$mo_co)
+summary(endestcm$mo_co2)
+str(endestcm$mo_co2)
+
+```
+
+
+
+1.  TRIPLE CARGA
+```{r}
+#TRIPLE CARGA
+endestcm$triple_burden=(endestcm$desnutrition==1) & (endestcm$anemia_new==1) & (endestcm$mothero_o==1)
+summary(endestcm$triple_burden)
+endestcm$triple_burden[which(endestcm$triple_burden==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$triple_burden[which(endestcm$triple_burden==TRUE)]  <- 1
+summary(endestcm$triple_burden)
+endestcm$triple_burden2=as.factor(endestcm$triple_burden)
+summary(endestcm$triple_burden2)
+str(endestcm$triple_burden2)
+```
+
+```{r}
+#DOBLE CARGA
+endestcm$double_burden=(endestcm$desnutrition==1) & (endestcm$mothero_o==1)
+summary(endestcm$double_burden)
+endestcm$double_burden[which(endestcm$double_burden==FALSE)]  <- 0 #le damos valores de 0 y 1 a la variable, recordar que para realizar el analisis de regresion, se requiere que la variable tenga 2 valores, 0=ausencia, 1=presencia del fenomeno. 
+endestcm$double_burden[which(endestcm$double_burden==TRUE)]  <- 1
+summary(endestcm$double_burden)
+endestcm$double_burden2=as.factor(endestcm$double_burden)
+summary(endestcm$double_burden2)
+str(endestcm$double_burden2)
+```
+```{r}
+endestcm$departamento <- ifelse(endestcm$departamento == 1, "AMAZONAS",
+                       ifelse(endestcm$departamento == 2, "ANCASH",
+                       ifelse(endestcm$departamento == 3, "APURIMAC",
+                       ifelse(endestcm$departamento == 4, "AREQUIPA",
+                       ifelse(endestcm$departamento == 5, "AYACUCHO",
+                       ifelse(endestcm$departamento == 6, "CAJAMARCA",
+                       ifelse(endestcm$departamento == 7, "CALLAO",
+                       ifelse(endestcm$departamento == 8, "CUSCO",
+                       ifelse(endestcm$departamento == 9, "HUANCAVELICA",
+                       ifelse(endestcm$departamento == 10, "HUANUCO",
+                       ifelse(endestcm$departamento == 11, "ICA",
+                       ifelse(endestcm$departamento == 12, "JUNIN",
+                       ifelse(endestcm$departamento == 13, "LA LIBERTAD",
+                       ifelse(endestcm$departamento == 14, "LAMBAYEQUE",
+                       ifelse(endestcm$departamento == 15, "LIMA", 
+                       ifelse(endestcm$departamento == 16, "LORETO",
+                       ifelse(endestcm$departamento == 17, "MADRE DE DIOS",
+                       ifelse(endestcm$departamento == 18, "MOQUEGUA",
+                       ifelse(endestcm$departamento == 19, "PASCO",
+                       ifelse(endestcm$departamento == 20, "PIURA",
+                       ifelse(endestcm$departamento == 21, "PUNO",
+                       ifelse(endestcm$departamento == 22, "SAN MARTIN",
+                       ifelse(endestcm$departamento == 23, "TACNA",
+                       ifelse(endestcm$departamento == 24, "TUMBES",
+                       ifelse(endestcm$departamento == 25, "UCAYALI", NA)))))))))))))))))))))))))
+
+```
+
+```{r}
+library(gtsummary)
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+design %>%                   
+  tbl_svysummary(include = c(triple_burden2,
+                             double_burden2,
+                             bmi_mother_cat2,
+                             anemia_newcat,
+                             stunting,
+                             wasting,
+                             underweight,
+                             overweight_child,
+                             desnutrition2),
+                 statistic= list (all_categorical() ~ "{p}",
+                              all_continuous() ~ "{mean} ± {sd}"),
+                 digits = all_categorical() ~ 2)
+```
+```{r}
+library(gtsummary)
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+design %>%                   
+  tbl_svysummary(include = c(om_ac2,
+                             mn_ac2,
+                             om_sc2,
+                             mn_sc2,
+                             om_wc2,
+                             mn_wc2,
+                             mn_uc2,
+                             om_uc2,
+                             mo_cn2,
+                             mn_cn2,
+                             mo_co2,
+                             mn_co2),
+                 statistic= list (all_categorical() ~ "{p}",
+                              all_continuous() ~ "{mean} ± {sd}"),
+                 digits = all_categorical() ~ 2)
+```
+
+```{r}
+endestcm_1 <- endestcm_1 %>% 
+  mutate(weight = ifelse(QS902 == 1 & (QS900 >= 1 & QS900 < 999), QS900,
+                       ifelse(QS902 == 4, HA2/10, NA)),
+         height = ifelse(QS902 == 1 & (QS901 >= 1 & QS901 < 999), QS901,
+                        ifelse(QS902 == 4, HA3/10, NA)))
+View(endestcm_1)
+endestcm_1=subset(x=endestcm, subset = triple_burden==1)
+sum(duplicated(endestcm_1$id))
+
+```
+
+
+#EXPORTAR DATA A STATA PARA COMPROBACIÓN
+
+```{r}
+foreign::write.dta(endestcm, paste0("E:/TRABAJOS RSTUDIO/Triple carga malnutricion/Triple burden of malnutrition/endestcm2023",  Sys.Date(), ".dta"))
+```
+
+#DIVISIÓN EN URBANO Y RURAL
+
+```{r}
+endestcm_rur=subset(x=endestcm, subset = urb_rur==1)
+endestcm_urb=subset(x=endestcm, subset = urb_rur==0)
+```
+
+```{r}
+foreign::write.dta(endestcm_rur, paste0("E:/Triple carga malnutricion/Triple burden of malnutrition/Triple carga 2019/endestcm2019_rur",  Sys.Date(), ".dta"))
+foreign::write.dta(endestcm_urb, paste0("E:/Triple carga malnutricion/Triple burden of malnutrition/Triple carga 2019/endestcm2019_urb",  Sys.Date(), ".dta"))
+```
+
+```{r}
+options(survey.adjust.domain.lonely=TRUE)
+options(survey.lonely.psu="adjust")
+```
+
+```{r}
+library(gtsummary)
+tbl_summary(endestcm[,-c(1:3)],missing = "no",
+            include = c(urb_rur2,
+                             region_natural2,
+                             idx_riq2,
+                             desague2,
+                             agua2,
+                             electricidad2,
+                             combustible2,
+                             agem_cat2,
+                             agemp_cat2,
+                             num_child_cat2,
+                             est_civ2,
+                             lvl_educativo2,
+                             parentesco_jefe2,
+                             agec_cat2,
+                             sex_child2,
+                             hierro_embarazo2,
+                             weight_born_cat2,
+                             tamano_percibido2,
+                             lac_2f),
+              statistic= list (all_categorical() ~ "{n}",
+                              all_continuous() ~ "{mean} ± {sd}"),
+                 digits = all_continuous() ~ 1)
+```
+```{r}
+tbl_summary(endestcm[,-c(1:3)], by = triple_burden2,
+            include = c(urb_rur2,
+                             region_natural2,
+                             idx_riq2,
+                             desague2,
+                             agua2,
+                             electricidad2,
+                             combustible2,
+                             agem_cat2,
+                             agemp_cat2,
+                             num_child_cat2,
+                             est_civ2,
+                             lvl_educativo2,
+                             parentesco_jefe2,
+                             agec_cat2,
+                             sex_child2,
+                             hierro_embarazo2,
+                             weight_born_cat2,
+                             tamano_percibido2),
+            statistic= list (all_categorical() ~ "{n}",
+                              all_continuous() ~ "{mean} ± {sd}"),
+                 digits = all_continuous() ~ 2)
+```
+```{r}
+design %>%                   
+  tbl_svysummary(include = c(urb_rur2,
+                             region_natural2,
+                             idx_riq2,
+                             desague2,
+                             agua2,
+                             electricidad2,
+                             combustible2,
+                             agem_cat2,
+                             agemp_cat2,
+                             num_child_cat2,
+                             est_civ2,
+                             lvl_educativo2,
+                             parentesco_jefe2,
+                             agec_cat2,
+                             sex_child2,
+                             hierro_embarazo2,
+                             weight_born_cat2,
+                             tamano_percibido2),
+                 statistic= list (all_categorical() ~ "{p}",
+                              all_continuous() ~ "{mean} ± {sd}"),
+                 digits = all_categorical() ~ 2)
+```
+
+
+```{r}
+endestcm$sample_weight_house2=endestcm$sample_weight_house/1000000
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house2, data=endestcm)
+design %>%                   
+  tbl_svysummary(include = c(urb_rur2,
+                             region_natural2,
+                             idx_riq2,
+                             desague2,
+                             agua2,
+                             electricidad2,
+                             combustible2,
+                             agem_cat2,
+                             agemp_cat2,
+                             num_child_cat2,
+                             est_civ2,
+                             lvl_educativo2,
+                             parentesco_jefe2,
+                             agec_cat2,
+                             sex_child2,
+                             hierro_embarazo2,
+                             weight_born_cat2,
+                             tamano_percibido2),
+                 by = triple_burden2,
+                 percent = "row",
+                 statistic= list (all_categorical() ~ "{p}",
+                              all_continuous() ~ "{mean} ± {sd}"),
+                 digits = all_categorical() ~ 2) %>%
+    add_p(pvalue_fun = ~ style_pvalue(.x, digits = 3))
+
+```
+
+```{r}
+bivariado <- design %>%                   
+  tbl_uvregression(
+      method = survey::svyglm,
+      y = triple_burden,
+      method.args = list(family = quasibinomial),
+      include = c(           desague2,
+                             agua2,
+                             electricidad2,
+                             combustible2,
+                             agemp_cat,
+                             num_child_cat,
+                             est_civ2,
+                             lvl_educativo2,
+                             parentesco_jefe2,
+                             agec_cat,
+                             sex_child2,
+                             hierro_embarazo2,
+                             weight_born_cat,
+                             tamano_percibido2),
+      exponentiate = TRUE,    
+      pvalue_fun = ~style_pvalue(.x, digits = 3))
+bivariado
+```
+
+```{r}
+regresion_multi <- survey::svyglm(triple_burden~urb_rur2+region_natural2+combustible2+lvl_educativo2+agemp_cat+num_child_cat+agec_cat+weight_born_cat, family = quasibinomial, design = design)
+
+multivariable <-   tbl_regression(regresion_multi,
+      exponentiate = TRUE,    
+      pvalue_fun = ~style_pvalue(.x, digits = 3)) 
+multivariable
+```
+
+```{r}
+str(endestcm$weight_born_cat)
+```
+
+
+1. ANALISIS DESCRIPTIVO
+
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+
+#TRIPLE CARGA DE MALNUTRICIÓN
+triple2021_1 = svyciprop(~triple_burden==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(triple2021_1)
+attr(triple2021_1, "ci")
+triple2021_0 = svyciprop(~triple_burden==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(triple2021_0)
+attr(triple2021_0, "ci")
+
+#DOBLE CARGA DE MALNUTRICIÓN
+doble2021_1 = svyciprop(~double_burden==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(doble2021_1)
+attr(doble2021_1, "ci")
+doble2021_0 = svyciprop(~double_burden==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(doble2021_0)
+attr(doble2021_0, "ci")
+
+#SOCIODEMOGRAFICS
+urb_rur2021_1 = svyciprop(~urb_rur==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(urb_rur2021_1)
+attr(urb_rur2021_1, "ci")
+urb_rur2021_0 = svyciprop(~urb_rur==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(urb_rur2021_0)
+attr(urb_rur2021_0, "ci")
+
+
+reg_nat2021_2 = svyciprop(~region_natural==2, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(reg_nat2021_2)
+attr(reg_nat2021_2, "ci")
+reg_nat2021_1 = svyciprop(~region_natural==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(reg_nat2021_1)
+attr(reg_nat2021_1, "ci")
+reg_nat2021_0 = svyciprop(~region_natural==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(reg_nat2021_0)
+attr(reg_nat2021_0, "ci")
+
+high_alt2021_1 = svyciprop(~high_alt==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(high_alt2021_1)
+attr(high_alt2021_1, "ci")
+high_alt2021_0 = svyciprop(~high_alt==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(high_alt2021_0)
+attr(high_alt2021_0, "ci")
+
+idxriq2021_0 = svyciprop(~idx_riq==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(idxriq2021_0)
+attr(idxriq2021_0, "ci")
+idxriq2021_1 = svyciprop(~idx_riq==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(idxriq2021_1)
+attr(idxriq2021_1, "ci")
+idxriq2021_2 = svyciprop(~idx_riq==2, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(idxriq2021_2)
+attr(idxriq2021_2, "ci")
+idxriq2021_3 = svyciprop(~idx_riq==3, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(idxriq2021_3)
+attr(idxriq2021_3, "ci")
+idxriq2021_4 = svyciprop(~idx_riq==4, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(idxriq2021_4)
+attr(idxriq2021_4, "ci")
+
+agua2021_1 = svyciprop(~agua==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(agua2021_1)
+attr(agua2021_1, "ci")
+agua2021_0 = svyciprop(~agua==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(agua2021_0)
+attr(agua2021_0, "ci")
+
+desague2021_1 = svyciprop(~desague==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(desague2021_1)
+attr(desague2021_1, "ci")
+desague2021_0 = svyciprop(~desague==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(desague2021_0)
+attr(desague2021_0, "ci")
+
+electricidad2021_1 = svyciprop(~electricidad==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(electricidad2021_1)
+attr(electricidad2021_1, "ci")
+electricidad2021_0 = svyciprop(~electricidad==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(electricidad2021_0)
+attr(electricidad2021_0, "ci")
+
+combustible2021_1 = svyciprop(~combustible==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(combustible2021_1)
+attr(combustible2021_1, "ci")
+combustible2021_0 = svyciprop(~combustible==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(combustible2021_0)
+attr(combustible2021_0, "ci")
+
+
+#MADRE
+
+age2021_0 = svyciprop(~agem_cat2==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(age2021_0)
+attr(age2021_0, "ci")
+age2021_1 = svyciprop(~agem_cat2==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(age2021_1)
+attr(age2021_1, "ci")
+age2021_2 = svyciprop(~agem_cat2==2, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(age2021_2)
+attr(age2021_2, "ci")
+age2021_3 = svyciprop(~agem_cat2==3, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(age2021_3)
+attr(age2021_3, "ci")
+age2021=svymean(~age_mother, design= design, na.rm=TRUE) #siempre se considera el diseño antes de realizar cualquier analisis
+age2021
+
+summary(endestcm$primer_parto)
+age_primer_parto2021_0 = svyciprop(~agemp_cat2==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(age_primer_parto2021_0)
+attr(age_primer_parto2021_0, "ci")
+age_primer_parto2021_1 = svyciprop(~agemp_cat2==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(age_primer_parto2021_1)
+attr(age_primer_parto2021_1, "ci")
+age_primer_parto2021_2 = svyciprop(~agemp_cat2==2, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(age_primer_parto2021_2)
+attr(age_primer_parto2021_2, "ci")
+age_primer_parto2021=svymean(~primer_parto, design= design, na.rm=TRUE) #siempre se considera el diseño antes de realizar cualquier analisis
+age_primer_parto2021
+
+num_child2021_0 = svyciprop(~num_child_cat2==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(num_child2021_0)
+attr(num_child2021_0, "ci")
+num_child2021_1 = svyciprop(~num_child_cat2==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(num_child2021_1)
+attr(num_child2021_1, "ci")
+num_child2021_2 = svyciprop(~num_child_cat2==2, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(num_child2021_2)
+attr(num_child2021_2, "ci")
+
+estciv2021_0 = svyciprop(~est_civ==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(estciv2021_0)
+attr(estciv2021_0, "ci")
+estciv2021_1 = svyciprop(~est_civ==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(estciv2021_1)
+attr(estciv2021_1, "ci")
+
+lvled2021_0 = svyciprop(~lvl_educativo==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(lvled2021_0)
+attr(lvled2021_0, "ci")
+lvled2021_1 = svyciprop(~lvl_educativo==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(lvled2021_1)
+attr(lvled2021_1, "ci")
+lvled2021_2 = svyciprop(~lvl_educativo==2, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(lvled2021_2)
+attr(lvled2021_2, "ci")
+lvled2021_3 = svyciprop(~lvl_educativo==3, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(lvled2021_3)
+attr(lvled2021_3, "ci")
+
+seg2021_1= svyciprop(~seguro_salud==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(seg2021_1)
+attr(seg2021_1, "ci")
+seg2021_0 = svyciprop(~seguro_salud==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(seg2021_0)
+attr(seg2021_0, "ci")
+
+jefe2021_1= svyciprop(~parentesco_jefe==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(jefe2021_1)
+attr(jefe2021_1, "ci")
+jefe2021_0 = svyciprop(~parentesco_jefe==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(jefe2021_0)
+attr(jefe2021_0, "ci")
+
+bmi2021=svymean(~bmi_mother, design= design, na.rm=TRUE)
+bmi2021
+bmi2021_0 = svyciprop(~bmi_mother_cat=="0", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(bmi2021_0)
+attr(bmi2021_0, "ci")
+bmi2021_1 = svyciprop(~bmi_mother_cat=="1", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(bmi2021_1)
+attr(bmi2021_1, "ci")
+bmi2021_2 = svyciprop(~bmi_mother_cat=="2", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(bmi2021_2)
+attr(bmi2021_2, "ci")
+bmi2021_3 = svyciprop(~bmi_mother_cat=="3", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(bmi2021_3)
+attr(bmi2021_3, "ci")
+
+#NIÑOS
+agec2021_0 = svyciprop(~agec_cat2==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(agec2021_0)
+attr(agec2021_0, "ci")
+agec2021_1 = svyciprop(~agec_cat2==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(agec2021_1)
+attr(agec2021_1, "ci")
+agec2021_2 = svyciprop(~agec_cat2==2, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(agec2021_2)
+attr(agec2021_2, "ci")
+agec2021_3 = svyciprop(~agec_cat2==3, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(agec2021_3)
+attr(agec2021_3, "ci")
+agec2021_4 = svyciprop(~agec_cat2==4, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(agec2021_4)
+attr(agec2021_4, "ci")
+
+sex2021_1 = svyciprop(~sex_child==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(sex2021_1)
+attr(sex2021_1, "ci")
+sex2021_0 = svyciprop(~sex_child==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(sex2021_0)
+attr(sex2021_0, "ci")
+
+hierro_embarazo2021_1 = svyciprop(~hierro_embarazo==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(hierro_embarazo2021_1)
+attr(hierro_embarazo2021_1, "ci")
+hierro_embarazo2021_0 = svyciprop(~hierro_embarazo==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(hierro_embarazo2021_0)
+attr(hierro_embarazo2021_0, "ci")
+
+
+peso_nacer2021_2 = svyciprop(~weight_born_cat=="2", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(peso_nacer2021_2)
+attr(peso_nacer2021_2, "ci")
+peso_nacer2021_1 = svyciprop(~weight_born_cat=="1", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(peso_nacer2021_1)
+attr(peso_nacer2021_1, "ci")
+peso_nacer2021_0 = svyciprop(~weight_born_cat=="0", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(peso_nacer2021_0)
+attr(peso_nacer2021_0, "ci")
+
+tamano2021_2 = svyciprop(~tamano_percibido2=="2", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(tamano2021_2)
+attr(tamano2021_2, "ci")
+tamano2021_1 = svyciprop(~tamano_percibido2=="1", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(tamano2021_1)
+attr(tamano2021_1, "ci")
+tamano2021_0 = svyciprop(~tamano_percibido2=="0", design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(tamano2021_0)
+attr(tamano2021_0, "ci")
+
+
+amaman2021_1 = svyciprop(~actual_amamantando==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(amaman2021_1)
+attr(amaman2021_1, "ci")
+amaman2021_0 = svyciprop(~actual_amamantando==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(amaman2021_0)
+attr(amaman2021_0, "ci")
+
+#OUTCOMES
+desnutricion2021_1 = svyciprop(~desnutrition==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(desnutricion2021_1)
+attr(desnutricion2021_1, "ci")
+desnutricion2021_0 = svyciprop(~desnutrition==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(desnutricion2021_0)
+attr(desnutricion2021_0, "ci")
+
+stunted2021_1 = svyciprop(~stunting==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(stunted2021_1)
+attr(stunted2021_1, "ci")
+stunted2021_0 = svyciprop(~stunting==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(stunted2021_0)
+attr(stunted2021_0, "ci")
+
+wasted2021_1 = svyciprop(~wasting==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(wasted2021_1)
+attr(wasted2021_1, "ci")
+wasted2021_0 = svyciprop(~wasting==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(wasted2021_0)
+attr(wasted2021_0, "ci")
+
+child_normalweigth2021_1 = svyciprop(~peso_talla==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(child_normalweigth2021_1)
+attr(child_normalweigth2021_1, "ci")
+
+overweigth_child2021_0 = svyciprop(~peso_talla==2, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(overweigth_child2021_0)
+attr(overweigth_child2021_0, "ci")
+
+
+underweight2021_1 = svyciprop(~underweight==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(underweight2021_1)
+attr(underweight2021_1, "ci")
+underweight2021_0 = svyciprop(~underweight==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(underweight2021_0)
+attr(underweight2021_0, "ci")
+
+underweight2021_1 = svyciprop(~underweight==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(underweight2021_1)
+attr(underweight2021_1, "ci")
+underweight2021_0 = svyciprop(~underweight==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(underweight2021_0)
+attr(underweight2021_0, "ci")
+
+
+anemia2021_1 = svyciprop(~anemia_newcat==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(anemia2021_1)
+attr(anemia2021_1, "ci")
+anemia2021_0 = svyciprop(~anemia_oms==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(anemia2021_0)
+attr(anemia2021_0, "ci")
+
+#COMBICACIONES
+om_sc2021_1 = svyciprop(~om_sc==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(om_sc2021_1)
+attr(om_sc2021_1, "ci")
+om_sc2021_0 = svyciprop(~om_sc==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(om_sc2021_0)
+attr(om_sc2021_0, "ci")
+
+mn_sc2021_1 = svyciprop(~mn_sc==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_sc2021_1)
+attr(mn_sc2021_1, "ci")
+mn_sc2021_0 = svyciprop(~mn_sc==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_sc2021_0)
+attr(mn_sc2021_0, "ci")
+
+om_wc2021_1 = svyciprop(~om_wc==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(om_wc2021_1)
+attr(om_wc2021_1, "ci")
+om_wc2021_0 = svyciprop(~om_wc==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(om_wc2021_0)
+attr(om_wc2021_0, "ci")
+
+mn_wc2021_1 = svyciprop(~mn_wc==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_wc2021_1)
+attr(mn_wc2021_1, "ci")
+mn_wc2021_0 = svyciprop(~mn_wc==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_wc2021_0)
+attr(mn_wc2021_0, "ci")
+
+om_uc2021_1 = svyciprop(~om_uc==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(om_uc2021_1)
+attr(om_uc2021_1, "ci")
+om_uc2021_0 = svyciprop(~om_uc==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(om_uc2021_0)
+attr(om_uc2021_0, "ci")
+
+mn_uc2021_1 = svyciprop(~mn_uc==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_uc2021_1)
+attr(mn_uc2021_1, "ci")
+mn_uc2021_0 = svyciprop(~mn_uc==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_uc2021_0)
+attr(mn_uc2021_0, "ci")
+
+
+om_ac2021_1 = svyciprop(~om_ac==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(om_ac2021_1)
+attr(om_ac2021_1, "ci")
+om_ac2021_0 = svyciprop(~om_ac==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(om_ac2021_0)
+attr(om_ac2021_0, "ci")
+
+mn_ac2021_1 = svyciprop(~mn_ac==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_ac2021_1)
+attr(mn_ac2021_1, "ci")
+mn_ac2021_0 = svyciprop(~mn_ac==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_ac2021_0)
+attr(mn_ac2021_0, "ci")
+
+mo_cn2021_1 = svyciprop(~mo_cn==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mo_cn2021_1)
+attr(mo_cn2021_1, "ci")
+mo_cn2021_0 = svyciprop(~mo_cn==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mo_cn2021_0)
+attr(mo_cn2021_0, "ci")
+
+
+mn_cn2021_1 = svyciprop(~mn_cn==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_cn2021_1)
+attr(mn_cn2021_1, "ci")
+mn_cn2021_0 = svyciprop(~mn_cn==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_cn2021_0)
+attr(mn_cn2021_0, "ci")
+
+
+mo_co2021_1 = svyciprop(~mo_co==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mo_co2021_1)
+attr(mo_co2021_1, "ci")
+mo_co2021_0 = svyciprop(~mo_co==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mo_co2021_0)
+attr(mo_co2021_0, "ci")
+
+
+mn_co2021_1 = svyciprop(~mn_co==1, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_co2021_1)
+attr(mn_co2021_1, "ci")
+mn_co2021_0 = svyciprop(~mn_co==0, design = design, vartype = c('ci'), na.rm.all = T, level = 0.95, method = "li")
+head(mn_co2021_0)
+attr(mn_co2021_0, "ci")
+
+
+```
+2. ANALISIS BIVARIADO
+
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+
+#SOCIODEMOGRAFICAS
+
+bi_urbrur2021=prop.table(svytable(~urb_rur+triple_burden, desig=design), margin = 1)
+chisq_urbrur2021=svychisq(~urb_rur+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_urbrur2021=svychisq(~urb_rur+triple_burden, desig=design, na.rm = T)
+bi_urbrur2021
+chisq_urbrur2021
+chisqf_urbrur2021
+
+bi_reg_nat2021=prop.table(svytable(~region_natural+triple_burden, desig=design), margin = 1)
+chisq_reg_nat2021=svychisq(~region_natural+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_reg_nat2021=svychisq(~region_natural+triple_burden, desig=design, na.rm = T)
+bi_reg_nat2021
+chisq_reg_nat2021
+chisqf_reg_nat2021
+
+bi_high_alt2021=prop.table(svytable(~high_alt+triple_burden, desig=design), margin = 1)
+chisq_high_alt2021=svychisq(~high_alt+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_high_alt2021=svychisq(~high_alt+triple_burden, desig=design, na.rm = T)
+bi_high_alt2021
+chisq_high_alt2021
+chisqf_high_alt2021
+
+bi_idx_riq2021=prop.table(svytable(~idx_riq+triple_burden, desig=design), margin = 1)
+chisq_idx_riq2021=svychisq(~idx_riq+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_idx_riq2021=svychisq(~idx_riq+triple_burden, desig=design, na.rm = T)
+bi_idx_riq2021
+chisq_idx_riq2021
+chisqf_idx_riq2021
+
+
+bi_desague2021=prop.table(svytable(~desague+triple_burden, desig=design), margin = 1)
+chisq_desague2021=svychisq(~desague+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_desague2021=svychisq(~desague+triple_burden, desig=design, na.rm = T)
+bi_desague2021
+chisq_desague2021
+chisqf_desague2021
+
+
+bi_agua2021=prop.table(svytable(~agua+triple_burden, desig=design), margin = 1)
+chisq_agua2021=svychisq(~agua+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_agua2021=svychisq(~agua+triple_burden, desig=design, na.rm = T)
+bi_agua2021
+chisq_agua2021
+chisqf_agua2021
+
+
+bi_electricidad2021=prop.table(svytable(~electricidad+triple_burden, desig=design), margin = 1)
+chisq_electricidad2021=svychisq(~electricidad+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_electricidad2021=svychisq(~electricidad+triple_burden, desig=design, na.rm = T)
+bi_electricidad2021
+chisq_electricidad2021
+chisqf_electricidad2021
+
+
+bi_combustible2021=prop.table(svytable(~combustible+triple_burden, desig=design), margin = 1)
+chisq_combustible2021=svychisq(~combustible+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_combustible2021=svychisq(~combustible+triple_burden, desig=design, na.rm = T)
+bi_combustible2021
+chisq_combustible2021
+chisqf_combustible2021
+
+
+#MADRE
+
+bi_age_mother2021=prop.table(svytable(~agem_cat2+triple_burden, desig=design), margin = 1)
+chisq_age_mother2021=svychisq(~agem_cat2+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_age_mother2021=svychisq(~agem_cat2+triple_burden, desig=design, na.rm = T)
+bi_age_mother2021
+chisq_age_mother2021
+chisqf_age_mother2021
+
+bi_age_parto2021=prop.table(svytable(~agemp_cat2+triple_burden, desig=design), margin = 1)
+chisq_age_parto2021=svychisq(~agemp_cat2+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_age_parto2021=svychisq(~agemp_cat2+triple_burden, desig=design, na.rm = T)
+bi_age_parto2021
+chisq_age_parto2021
+chisqf_age_parto2021
+
+bi_num_child2021=prop.table(svytable(~num_child_cat2+triple_burden, desig=design), margin = 1)
+chisq_num_child2021=svychisq(~num_child_cat2+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_num_child2021=svychisq(~num_child_cat2+triple_burden, desig=design, na.rm = T)
+bi_num_child2021
+chisq_num_child2021
+chisqf_num_child2021
+
+
+bi_est_civ2021=prop.table(svytable(~est_civ+triple_burden, desig=design), margin = 1)
+chisq_est_civ2021=svychisq(~est_civ+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_est_civ2021=svychisq(~est_civ+triple_burden, desig=design, na.rm = T)
+bi_est_civ2021
+chisq_est_civ2021
+chisqf_est_civ2021
+
+bi_lvl_educativo2021=prop.table(svytable(~lvl_educativo+triple_burden, desig=design), margin = 1)
+chisq_lvl_educativo2021=svychisq(~lvl_educativo+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_lvl_educativo2021=svychisq(~lvl_educativo+triple_burden, desig=design, na.rm = T)
+bi_lvl_educativo2021
+chisq_lvl_educativo2021
+chisqf_lvl_educativo2021
+
+
+bi_seguro2021=prop.table(svytable(~seguro_salud+triple_burden, desig=design), margin = 1)
+chisq_seguro2021=svychisq(~seguro_salud+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_seguro2021=svychisq(~seguro_salud+triple_burden, desig=design, na.rm = T)
+bi_seguro2021
+chisq_seguro2021
+chisqf_seguro2021
+
+bi_jefe2021=prop.table(svytable(~parentesco_jefe+triple_burden, desig=design), margin = 1)
+chisq_jefe2021=svychisq(~parentesco_jefe+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_jefe2021=svychisq(~parentesco_jefe+triple_burden, desig=design, na.rm = T)
+bi_jefe2021
+chisq_jefe2021
+chisqf_jefe2021
+
+
+bi_age_child2021=prop.table(svytable(~agec_cat2+triple_burden, desig=design), margin = 1)
+chisq_age_child2021=svychisq(~agec_cat2+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_age_child2021=svychisq(~agec_cat2+triple_burden, desig=design, na.rm = T)
+bi_age_child2021
+chisq_age_child2021
+chisqf_age_child2021
+
+
+bi_sex_child2021=prop.table(svytable(~sex_child+triple_burden, desig=design), margin = 1)
+chisq_sex_child2021=svychisq(~sex_child+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_sex_child2021=svychisq(~sex_child+triple_burden, desig=design, na.rm = T)
+bi_sex_child2021
+chisq_sex_child2021
+chisqf_sex_child2021
+
+bi_hierro_supl2021=prop.table(svytable(~hierro_embarazo+triple_burden, desig=design), margin = 1)
+chisq_hierro_supl2021=svychisq(~hierro_embarazo+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_hierro_supl2021=svychisq(~hierro_embarazo+triple_burden, desig=design, na.rm = T)
+bi_hierro_supl2021
+chisq_hierro_supl2021
+chisqf_hierro_supl2021
+
+bi_peso_nacer2021=prop.table(svytable(~weight_born_cat2+triple_burden, desig=design), margin = 1)
+chisq_peso_nacer2021=svychisq(~weight_born_cat2+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_peso_nacer2021=svychisq(~weight_born_cat2+triple_burden, desig=design, na.rm = T)
+bi_peso_nacer2021
+chisq_peso_nacer2021
+chisqf_peso_nacer2021
+
+
+bi_tamano_percibido2021=prop.table(svytable(~tamano_percibido+triple_burden, desig=design), margin = 1)
+chisq_tamano_percibido2021=svychisq(~tamano_percibido+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_tamano_percibido2021=svychisq(~tamano_percibido+triple_burden, desig=design, na.rm = T)
+bi_tamano_percibido2021
+chisq_tamano_percibido2021
+chisqf_tamano_percibido2021
+
+
+bi_amaman2021=prop.table(svytable(~actual_amamantando+triple_burden, desig=design), margin = 1)
+chisq_amaman2021=svychisq(~actual_amamantando+triple_burden, desig=design, statistic= "Chisq", na.rm = T)
+chisqf_amaman2021=svychisq(~actual_amamantando+triple_burden, desig=design, na.rm = T)
+bi_amaman2021
+chisq_amaman2021
+chisqf_amaman2021
+summary(endestcm$desague2)
+```
+
+#ANALISIS MULTIVARIADO
+
+```{r}
+library(AICcmodavg)
+library(knitr)
+library(MASS)
+```
+
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+modelo1=svyglm(triple_burden ~ urb_rur2, design= design, data=endestcm, family="quasibinomial")
+summary(modelo1)
+exp(cbind(OR = coef(modelo1), confint(modelo1)))
+AIC(modelo1)
+```
+
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+modelo2=svyglm(triple_burden ~ region_natural2, design= design, data=endestcm, family="quasibinomial")
+summary(modelo2)
+exp(cbind(OR = coef(modelo2), confint(modelo2)))
+```
+
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+modelo3=svyglm(triple_burden ~ idx_riq2, design= design, data=endestcm, family="quasibinomial")
+summary(modelo3)
+exp(cbind(OR = coef(modelo3), confint(modelo3)))
+```
+
+
+```{r}
+library(performance)
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+log_ora0=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 +  agemp_cat + num_child_cat + lvl_educativo2 + agec_cat + weight_born_cat, design= design, data=endestcm, family="quasibinomial")
+summary(log_ora0)
+exp(cbind(OR = coef(log_ora0), confint(log_ora0)))
+
+check_collinearity(log_ora0)
+check_overdispersion(log_ora0)
+model_performance(log_ora0)
+test_likelihoodratio(log_ora0)
+```
+
+
+```{r}
+log_ora1=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + desague2 + agua2 + electricidad2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 +parentesco_jefe2+ agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin edad madre
+log_ora2=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + desague2 + agua2 + electricidad2 + combustible2 +agem_cat+ agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin jefe
+log_ora3=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + desague2 + agua2 + electricidad2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin edad madre ni jefe
+log_ora4=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + desague2 + agua2 + electricidad2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin hierro
+log_ora5=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + desague2 + agua2 + electricidad2 + combustible2 + agemp_cat + num_child_cat + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin estado civil
+log_ora6=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + agua2 + electricidad2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin desague. SE VA
+log_ora7=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + electricidad2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin agua. SE VA
+log_ora8=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin electricidad. SE VA
+log_ora9=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#Sin combustible. QUEDA COMBUSTIBLE
+log_ora10=svyglm(triple_burden ~ region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")#SIN URBANO RURAL. SE QUEDA
+log_ora11=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#Sin estado actual amamantando. SE VA
+log_ora12=svyglm(triple_burden ~ urb_rur2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#Sin región natural. SE QUEDA
+log_ora13=svyglm(triple_burden ~ urb_rur2 + region_natural2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#Sin indice de riqueza. SE QUEDA
+log_ora14=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#Sin edad primer parto. SE QUEDA
+log_ora15=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#Sin numero de hijos. SE QUEDA
+log_ora16=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#Sin level educativo. SE VA
+log_ora17=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#Sin edad de niño. SE VA
+log_ora18=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#Sin sexo de niño. SE QUEDA
+log_ora19=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + sex_child2 + hierro_embarazo2 + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")#SIN PESO AL NACER. SE QUEDA
+log_ora20=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + sex_child2 + hierro_embarazo2 + weight_born_cat, design= design, data=endestcm, family="quasibinomial")#Sin tamaño percibido. SE QUEDA
+#MODELO 17 SE QUEDA
+log_ora17=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")
+AIC(log_ora0)
+AIC(log_ora1)
+AIC(log_ora2)
+AIC(log_ora3)
+AIC(log_ora4)
+AIC(log_ora5)
+AIC(log_ora6)
+AIC(log_ora7)
+AIC(log_ora8)
+AIC(log_ora9)
+AIC(log_ora10)
+AIC(log_ora11)
+AIC(log_ora12)
+AIC(log_ora13)
+AIC(log_ora14)
+AIC(log_ora15)
+AIC(log_ora16)
+AIC(log_ora17)
+AIC(log_ora20)
+```
+
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+log_ora_lvl=svyglm(triple_burden ~ lvl_educativo2 +urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")
+summary(log_ora16)
+exp(cbind(OR = coef(log_ora16), confint(log_ora16)))
+AIC(log_ora16)
+```
+
+```{r}
+library(car)
+vif(log_ora16)
+vif_values <- data.frame(vif(log_ora16))
+vif_values$GVIF..1..2.Df..^2
+```
+
+#ANALISIS MULTIVARIADO EDAD Y SEXO...
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+log_ora=svyglm(triple_burden ~ urb_rur2 + region_natural2 + idx_riq2 + desague2 + agua2 + electricidad2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + lvl_educativo2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2 + actual_amamantando2, design= design, data=endestcm, family="quasibinomial")
+summary(log_ora)
+exp(cbind(OR = coef(log_ora), confint(log_ora)))
+```
+
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+log_ora_lvl=svyglm(triple_burden ~ lvl_educativo2 +urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")
+summary(log_ora_lvl)
+exp(cbind(OR = coef(log_ora_lvl), confint(log_ora_lvl)))
+AIC(log_ora_lvl)
+```
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+log_ora_aa=svyglm(triple_burden ~ actual_amamantando2 + urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")
+summary(log_ora_aa)
+exp(cbind(OR = coef(log_ora_aa), confint(log_ora_aa)))
+AIC(log_ora_aa)
+AIC(log_ora16)
+```
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+log_ora_desague=svyglm(triple_burden ~ desague2 + urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")
+summary(log_ora_desague)
+exp(cbind(OR = coef(log_ora_desague), confint(log_ora_desague)))
+AIC(log_ora_desague)
+AIC(log_ora16)
+```
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+log_ora_agua=svyglm(triple_burden ~ agua2 + urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")
+summary(log_ora_agua)
+exp(cbind(OR = coef(log_ora_agua), confint(log_ora_agua)))
+AIC(log_ora_agua)
+AIC(log_ora16)
+```
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+log_ora_electricidad=svyglm(triple_burden ~ electricidad2 + urb_rur2 + region_natural2 + idx_riq2 + combustible2 + agemp_cat + num_child_cat + est_civ2 + agec_cat + sex_child2 + hierro_embarazo2 + weight_born_cat + tamano_percibido2, design= design, data=endestcm, family="quasibinomial")
+summary(log_ora_electricidad)
+exp(cbind(OR = coef(log_ora_electricidad), confint(log_ora_electricidad)))
+AIC(log_ora_electricidad)
+AIC(log_ora16)
+```
+
+```{r}
+#tabla regresion
+multivariable <-   tbl_regression(regresion_multi,
+      exponentiate = TRUE,    
+      pvalue_fun = ~style_pvalue(.x, digits = 3)) 
+```
+
+#MAPA
+```{r}
+design = svydesign(id = ~psu, strata = ~stratum, weights= ~sample_weight_house, data=endestcm)
+proportions_tcm_19 <- svyby(~triple_burden==1, 
+                                   by = ~departamento, 
+                                   design = design, 
+                                   FUN = svyciprop, 
+                                   vartype = c('ci'),
+                                   na.rm.all = T)
+names(proportions_tcm_19) <- c("DEPARTAMEN", "proportion", "proportion_l", "proportion_u")
+proportions_tcm_19$category <- "Triple carga de malnutrición"
+
+proportions_tcm_19$prevalence=proportions_tcm_19$proportion*100
+proportions_tcm_19$LL=proportions_tcm_19$proportion_l*100
+proportions_tcm_19$UL=proportions_tcm_19$proportion_u*100
+proportions_tcm_19$prev_map=round(proportions_tcm_19$prevalence, digits= 2)
+proportions_tcm_19
+
+```
+
+#Figura 2
+```{r}
+library(sf)
+library(purrr)
+library(tidyverse)
+library(ggplot2)
+library(ggrepel)
+```
+#Lectura mapa Peru
+```{r}
+peru_d <- st_read("E:/TRABAJOS RSTUDIO/Triple carga malnutricion/Triple burden of malnutrition/departamentos/DEPARTAMENTOS.shp")
+peru_d
+```
+#Union base de datos
+```{r}
+peru_tcm <- peru_d %>% #Juntamos ambas bases de datos
+  left_join(proportions_tcm_19)
+```
+
+
+```{r}
+library(ggplot2)
+library(scales)
+library(RColorBrewer)
+myPalette <- colorRampPalette(rev(brewer.pal(11, "Spectral")))
+```
+
+
+```{r}
+Figura2=ggplot(peru_tcm) +
+  geom_sf(aes(fill = prevalence))+
+  labs(title = "",
+       caption = "",
+        x="",
+       y="")+ 
+  scale_fill_distiller(palette = "RdYlGn")+
+  theme_void()+
+  theme(legend.position = c(0.175, 0.2), legend.title = element_blank())
+Figura2 + geom_sf_label(aes(label = prev_map), label.padding = unit(0.1, "mm"))
+```
+
+FIGURA 1
+```{r}
+child_anemia=c(18.45,8.95)
+child_retraso_de_crecimiento=c(6.92,4.35)
+child_emaciacion=c(0.32,0.20)
+child_bajo_peso=c(1.38, 1.16)
+child_overweigth=c(5.79,1.24)
+chord_matriz=rbind(child_anemia, child_retraso_de_crecimiento, child_emaciacion, child_bajo_peso,child_overweigth)
+colnames(chord_matriz)=c("OOM", "NUM")
+rownames(chord_matriz)=c("AC", "SC", "WC", "UC", "OOC")
+chord_matriz
+library(circlize)
+col.pal=c(AC="red", SC="yellow", WC="darkblue", UC="darkred", OOC="green", OOM="red", NUM="yellow")
+figure1=chordDiagram(chord_matriz, grid.col=col.pal)
+```
+
+
+```{r}
+library(plyr)
+library(readxl)
+barplot1=read_excel("barplot1.xlsx")
+barplot1$n = as.numeric(factor(barplot1$group))
+barplot1 = ddply(barplot1,.(group,variable),transform, x=paste(c(rep(' ',n-1), variable), collapse=''))
+barplot1$x = factor(barplot1$x, levels=barplot1[order(barplot1$prevalence), 'x'])
+```
+
+```{r}
+ggplot(barplot1,
+       aes(fill=(group),
+           x=x,
+           y=prevalence)) +
+  geom_bar( stat="identity",alpha=0.5) +
+  coord_flip() +
+  theme_light() +
+  scale_fill_manual("", values = c("gold2","darkred", "pink"))+
+  facet_grid(~group, scale='free_x')+
+  labs(x = "", y = "")
+```
+
+```{r}
+ggplot(barplot1,
+       aes(fill=(group),
+           x=x,
+           y=prevalence)) +
+  geom_bar( stat="identity",alpha=0.5)+
+  facet_grid(~group, scale='free_x')+
+  theme_bw()+
+  scale_fill_manual("", values = c("gold2","#8B1A1A", "#2F4F4F"))+
+  theme(axis.text.x=element_text(angle=90,hjust=1,vjust=.5))+
+  labs(x = "", y = "")+
+  theme(legend.position="none")+
+  geom_text(aes(label=prevalence), position=position_dodge(width=1), vjust=-0.25, size=3)
+```
+
+
