@@ -132,9 +132,6 @@ variable_selection_endes <- function(data) {
     birth_last5years = V208,
     cesarean_birth = M17,
     health_insurance = QS26,
-    current_breastfeeding = V404,
-    breastfeeding_duration = M4,
-    months_breastfeeding = M5,
     
     # Niño
     age_child = HC1,
@@ -151,6 +148,9 @@ variable_selection_endes <- function(data) {
     hb_altura_child = HC56,
     level_anemia_child = HC57,
     orden_nacimiento = MIDX,
+    current_breastfeeding = V404,
+    breastfeeding_duration = M4,
+    months_breastfeeding = M5,
     
     # Casa
     sexo_jefe = HV219,
