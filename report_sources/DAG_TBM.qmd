@@ -1,0 +1,261 @@
+---
+title: "DAG_DBM"
+author: "Carlos Ballon-Salcedo"
+date: "`r Sys.Date()`"
+format: docx
+editor: source
+---
+
+# Load packages
+
+```{r}
+pacman::p_load(dagitty, ggdag, tidyverse, ggrepel, BiocManager, extrafont, here)
+```
+
+# Load data
+
+```{r}
+#| eval: false
+#| include: false
+dag <- dagitty('
+dag {
+  bb="0,0,1,1"
+  "Depresión de la madre" [latent,pos="0.678,0.772"]
+  "Edad de la madre" [pos="0.345,0.125"]
+  "Edad del niño" [pos="0.855,0.227"]
+  "Educación de la madre" [adjusted,pos="0.416,0.371"]
+  "Ingreso percápita" [latent,pos="0.213,0.746"]
+  "Inseguridad alimentaria" [latent,pos="0.464,0.552"]
+  "Jefa del hogar" [pos="0.140,0.160"]
+  "Número de hijos vivos" [pos="0.240,0.144"]
+  "Región geográfica" [pos="0.715,0.114"]
+  "Suplementación de hierro durante el embarazo" [pos="0.480,0.772"]
+  "Vitamina A" [pos="0.317,0.774"]
+  "Área de residencia" [pos="0.608,0.099"]
+  "Índice de pobreza" [exposure,pos="0.242,0.497"]
+  Agua [pos="0.028,0.470"]
+  Amamantamiento [pos="0.470,0.118"]
+  Combustible [pos="0.127,0.699"]
+  Convivencia [pos="0.068,0.217"]
+  Desargue [pos="0.070,0.589"]
+  Electricidad [pos="0.038,0.336"]
+  DCM [outcome,pos="0.719,0.491"]
+
+  "Depresión de la madre" -> "Índice de pobreza"
+  "Depresión de la madre" -> Amamantamiento
+  "Depresión de la madre" -> TBM
+  "Edad de la madre" -> "Educación de la madre"
+  "Edad de la madre" -> "Número de hijos vivos"
+  "Edad de la madre" -> "Índice de pobreza"
+  "Edad de la madre" -> Amamantamiento
+  "Edad de la madre" -> TBM
+  "Edad del niño" -> "Índice de pobreza"
+  "Edad del niño" -> Amamantamiento
+  "Edad del niño" -> TBM
+  "Educación de la madre" -> "Índice de pobreza"
+  "Educación de la madre" -> Amamantamiento
+  "Educación de la madre" -> TBM
+  "Ingreso percápita" -> "Índice de pobreza"
+  "Inseguridad alimentaria" -> TBM
+  "Jefa del hogar" -> "Índice de pobreza"
+  "Número de hijos vivos" -> "Índice de pobreza"
+  "Número de hijos vivos" -> TBM
+  "Región geográfica" -> "Índice de pobreza"
+  "Región geográfica" -> TBM
+  "Suplementación de hierro durante el embarazo" -> TBM
+  "Vitamina A" -> TBM
+  "Área de residencia" -> "Índice de pobreza"
+  "Área de residencia" -> TBM
+  "Índice de pobreza" -> "Inseguridad alimentaria"
+  "Índice de pobreza" -> "Suplementación de hierro durante el embarazo"
+  "Índice de pobreza" -> "Vitamina A"
+  "Índice de pobreza" -> TBM
+  Agua -> "Índice de pobreza"
+  Amamantamiento -> TBM
+  Combustible -> "Índice de pobreza"
+  Convivencia -> "Índice de pobreza"
+  Desargue -> "Índice de pobreza"
+  Electricidad -> "Índice de pobreza"
+}
+')
+
+ggdag(dag, use_labels = "name", text = FALSE, label_size = 3.5) +
+  theme_dag_blank()
+```
+
+```{r}
+# DAG
+dag <- ggdag::dagify(
+  
+  # Outcome
+  DBM ~ Indice_Pobreza +
+    
+    # Ancestors of outcome
+    Amamantamiento + Suplementacion_Hierro_Madre + Suplementacion_Hierro_Nino +
+    Vitamina_A + Inseguridad_Alimentaria +
+    
+    # Ancestors of exposure and outcome
+    Depresion_Madre + Educacion_madre + Numero_Hijos + Edad_Madre + Edad_Nino +
+    Area_Residencia + Region_Geografica + Primero_parto,
+  
+  # Exposure
+  Indice_Pobreza ~ 
+    
+    # Ancestors of exposure
+    Agua + Combustible + Desague + Electricidad + Convivencia + Jefa_del_hogar +
+    Ingreso_Percapita +
+    
+    # Ancestors of exposure and outcome
+    Educacion_madre + Numero_Hijos + Edad_Madre + Edad_Nino + Area_Residencia +
+    Region_Geografica + Depresion_Madre + Primero_parto,
+
+  # Ancestors of outcome
+  Inseguridad_Alimentaria ~ Indice_Pobreza,
+  
+  # Ancestors of exposure and outcome
+  Educacion_madre ~ Edad_Madre,
+  Numero_Hijos ~ Edad_Madre,
+  Amamantamiento ~ Edad_Madre + Depresion_Madre + Edad_Nino,
+  Suplementacion_Hierro_Madre ~ Indice_Pobreza,
+  Suplementacion_Hierro_Nino ~ Indice_Pobreza,
+  Vitamina_A ~ Indice_Pobreza,
+  Primero_parto ~ Educacion_madre,
+
+  
+  labels = c(
+    DBM = "DBM",
+    Indice_Pobreza = "Índice de pobreza",
+    Inseguridad_Alimentaria = "Inseguridad alimentaria",
+    Suplementacion_Hierro_Madre = "Suplementación\nhierro madre",
+    Suplementacion_Hierro_Nino = "Suplementación\nhierro niño",
+    Vitamina_A = "Vitamina A",
+    Educacion_madre = "Educación de la madre",
+    Edad_Madre = "Edad de la madre",
+    Edad_Nino = "Edad del niño",
+    Numero_Hijos = "Número de hijos",
+    Area_Residencia = "Área de residencia",
+    Region_Geografica = "Región geográfica",
+    Convivencia = "Convivencia",
+    Combustible = "Combustible",
+    Desague = "Desagüe",
+    Electricidad = "Electricidad",
+    Agua = "Agua",
+    Jefa_del_hogar = "Jefa del hogar",
+    Ingreso_Percapita = "Ingreso percápita",
+    Amamantamiento = "Amamantamiento",
+    Depresion_Madre = "Depresión de la madre",
+    Primero_parto = "Edad del primer parto"
+  ),
+  
+  coords = list(
+    x = c(
+      Indice_Pobreza = 2, DBM = 15,
+      
+      Agua = -2, Combustible = -2, Desague = -3, Electricidad = -3, Convivencia = 0,
+      Jefa_del_hogar = 2, Ingreso_Percapita = -4, 
+      
+      Inseguridad_Alimentaria = 8.5, Suplementacion_Hierro_Madre = 7.5, 
+      Suplementacion_Hierro_Nino = 5, Vitamina_A = 10,
+      
+      Educacion_madre = 2, Numero_Hijos = 5, Edad_Madre = 7.5, Edad_Nino = 10,
+      Area_Residencia = 12.5, Region_Geografica = 15, Amamantamiento = 12,
+      Depresion_Madre = 15, Primero_parto = 5
+    ),
+    
+    y = c(
+      Indice_Pobreza = 0, DBM = 0,
+      
+      Agua = -1, Combustible = 1, Desague = 0.5, Electricidad = -0.5, 
+      Convivencia = -1.25, Jefa_del_hogar = -1.25, Ingreso_Percapita = 0,
+      
+      Inseguridad_Alimentaria = 0.4, Suplementacion_Hierro_Madre = -1.2,
+      Suplementacion_Hierro_Nino = -1.2, Vitamina_A = -1.2,
+      
+      Educacion_madre = 1.2, Numero_Hijos = 1.2, Edad_Madre = 1.7, Edad_Nino = 1.5,
+      Area_Residencia = 1.5, Region_Geografica = 1.2, Amamantamiento = -1.2,
+      Depresion_Madre = -1.2, Primero_parto = 1.7
+    )
+  )
+)
+
+# Clasificación de nodos
+nodos <- ggdag::tidy_dagitty(dag)$data |>
+  dplyr::mutate(tipo = case_when(
+    name == "DBM" ~ "Outcome",
+    name == "Indice_Pobreza" ~ "Exposición",
+    name %in% c(
+      "Suplementacion_Hierro_Madre", "Suplementacion_Hierro_Nino", 
+      "Vitamina_A") ~ "Mediador",
+    name %in% c(
+      "Educacion_madre", "Numero_Hijos", "Edad_Madre", "Edad_Nino", "Area_Residencia",
+      "Region_Geografica", "Amamantamiento", "Primero_parto") ~ "Confusor",
+    name %in% c(
+      "Agua", "Combustible", "Desague", "Electricidad", "Convivencia", 
+      "Jefa_del_hogar") ~ "Ancestros de exposición",
+    name %in% c(
+      "Ingreso_Percapita", "Inseguridad_Alimentaria", 
+      "Depresion_Madre") ~ "No observado (latente)"
+    )
+  )
+
+# Colores por tipo de variable
+colores <- c(
+  "Exposición" = "#1b9e77",
+  "Outcome" = "#7570b3",
+  "Mediador" = "#d95f02",
+  "Confusor" = "#e7298a",
+  "Ancestros de exposición" = "#66a61e",
+  "No observado (latente)" = "#999999"
+)
+```
+
+# Produce outputs
+
+```{r}
+#| fig-height: 7
+#| fig-width: 15
+F1 <- ggdag::ggdag(dag, text = FALSE, use_labels = NULL) +
+  ggdag::geom_dag_node(
+    data = nodos,
+    aes(fill = tipo),
+    position = "identity",
+    shape = 21,
+    color = "black"
+  ) +
+  ggdag::geom_dag_text(
+    data = nodos,
+    aes(label = label),
+    color = "black",
+    size = 3.5,
+    nudge_y = 0.25,
+    lineheight = 0.95,
+    family = "Zilla Slab",
+    check_overlap = FALSE
+  ) +
+  ggplot2::scale_fill_manual(values = colores, name = "Tipo de variable") +
+  ggdag::theme_dag_blank() +
+  ggplot2::theme(
+    text = element_text(family = "Zilla Slab"),
+    legend.title = element_text(face = "bold"), 
+    legend.text = element_text(size = 11),
+    plot.title = element_text(size = 14, face = "bold", family = "Zilla Slab")) +
+  ggplot2::ggtitle("DAG: Determinantes de la doble carga de malnutrición (DBM)")
+
+# View the DAG
+F1
+```
+
+# Save outputs
+
+```{r}
+ggsave(
+  plot = F1,
+  filename = here::here("outputs", "DAG_DBM.jpeg"),
+  width = 15,
+  height = 7,
+  dpi = 400,
+  units = "in",
+  device = "png"
+)
+```
+
