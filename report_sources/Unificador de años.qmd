@@ -266,7 +266,7 @@ children_data_1_2024 <- children_data_1_2024 |>
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC60
+    QSNUMERO = HC0
   ) |>
   dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
@@ -330,7 +330,7 @@ children_data_1_2023 <- children_data_1_2023 |>
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC60
+    QSNUMERO = HC0
   ) |>
   dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
@@ -394,7 +394,7 @@ children_data_1_2022 <- children_data_1_2022 |>
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC60
+    QSNUMERO = HC0
   ) |>
   dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
@@ -458,7 +458,7 @@ children_data_1_2021 <- children_data_1_2021 |>
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC60
+    QSNUMERO = HC0
   ) |>
   dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
@@ -522,7 +522,7 @@ children_data_1_2020 <- children_data_1_2020 |>
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC60
+    QSNUMERO = HC0
   ) |>
   dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
@@ -727,7 +727,7 @@ woman_data_2020 <- woman_data_1_2020 |>
 
 # Join children data_2020
 children_data_2020 <- children_data_1_2020 |>
-  dplyr::left_join(children_data_2_2020, by = c("HHID", "QSNUMERO", "HW1", "HW2", "HW3")) |>
+  dplyr::left_join(children_data_2_2020, by = c("HHID", "QSNUMERO")) |>
   dplyr::rename(MIDX = HWIDX)
 
 # Join children data with mother data_2020
@@ -834,10 +834,14 @@ count_endesdbm_2020 <- colnames(endesdbm_2020)
 ```{r}
 dplyr::setdiff(count_endesdbm_2022, count_endesdbm_2021)
 
-test <- sjlabelled::copy_labels(
-  bind_rows(endesdbm_2024_join, endesdbm_2023_join),
-  endesdbm_2024_join
-)
+label_backup <- sapply(endesdbm_2024_join, function(x) attr(x, "label"))
+
+test <- bind_rows(endesdbm_2024_join, endesdbm_2023_join, endesdbm_2022_join, endesdbm_2021_join)
+
+for (v in names(label_backup)) {
+  attr(test[[v]], "label") <- label_backup[[v]]
+}
+
 
 # Clean names
 # endestc <- janitor::clean_names(endestc)
