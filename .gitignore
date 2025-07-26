@@ -1,5 +1,7 @@
 *~
 outputs
+data
+dictionaries
 .Rhistory
 *.Rproj
 .Rproj.user
