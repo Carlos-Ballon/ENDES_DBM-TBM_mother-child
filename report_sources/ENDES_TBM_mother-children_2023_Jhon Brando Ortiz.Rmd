@@ -427,8 +427,6 @@ num_child_cat=cut(impdata2$tot_ninos_vivos, breaks = cut_num_child, labels = eti
 impdata2$num_child_cat=with(impdata2, num_child_cat)
 impdata2$num_child_cat2=as.numeric(impdata2$num_child_cat)-1
 
-summary(impdata2$lvl_educativo)
-
 str(impdata2$lvl_educativo)
 impdata2$lvl_educativo[which(impdata2$lvl_educativo=="Sin educación")] <- "Primaria incompleta"
 
