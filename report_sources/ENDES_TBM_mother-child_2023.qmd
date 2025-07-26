@@ -50,165 +50,165 @@ rfextras::load_scripts()
 
 ```{r}
 # 
-individual_data_2024 <- rio::import(here::here("data", "raw","RECH1_2024.dta"))
+individual_data_2024 <- rio::import(here::here("data", "2024","RECH1_2024.dta"))
 
-home_data_2024 <- rio::import(here::here("data", "raw", "RECH0_2024.dta"))
+home_data_2024 <- rio::import(here::here("data", "2024", "RECH0_2024.dta"))
 
-dwelling_data_2024 <- rio::import(here::here("data", "raw", "RECH23_2024.dta"))
+dwelling_data_2024 <- rio::import(here::here("data", "2024", "RECH23_2024.dta"))
 ```
 
 ```{r}
-woman_data_1_2024 <- rio::import(here::here("data", "raw", "RECH5_2024.dta"))
+woman_data_1_2024 <- rio::import(here::here("data", "2024", "RECH5_2024.dta"))
 
-woman_data_2_2024 <- rio::import(here::here("data", "raw", "REC0111_2024.dta"))
+woman_data_2_2024 <- rio::import(here::here("data", "2024", "REC0111_2024.dta"))
 
-woman_data_3_2024 <- rio::import(here::here("data", "raw", "REC41_2024.dta"))
+woman_data_3_2024 <- rio::import(here::here("data", "2024", "REC41_2024.dta"))
 
-woman_data_4_2024 <- rio::import(here::here("data", "raw", "REC42_2024.dta"))
+woman_data_4_2024 <- rio::import(here::here("data", "2024", "REC42_2024.dta"))
 
-woman_data_5_2024 <- rio::import(here::here("data", "raw", "RE223132_2024.dta"))
+woman_data_5_2024 <- rio::import(here::here("data", "2024", "RE223132_2024.dta"))
 ```
 
 ```{r}
-children_data_1_2024 <- rio::import(here::here("data", "raw", "RECH6_2024.dta"))
+children_data_1_2024 <- rio::import(here::here("data", "2024", "RECH6_2024.dta"))
 
-children_data_2_2024 <- rio::import(here::here("data", "raw", "REC44_2024.dta"))
+children_data_2_2024 <- rio::import(here::here("data", "2024", "REC44_2024.dta"))
 ```
 
 ```{r}
-health_data_2024 <- rio::import(here::here("data", "raw", "CSALUD01_2024.dta"))
+health_data_2024 <- rio::import(here::here("data", "2024", "CSALUD01_2024.dta"))
 ```
 
 ## 2023
 
 ```{r}
 # 
-individual_data_2023 <- rio::import(here::here("data", "raw","RECH1_2023.dta"))
+individual_data_2023 <- rio::import(here::here("data", "2023","RECH1_2023.dta"))
 
-home_data_2023 <- rio::import(here::here("data", "raw", "RECH0_2023.dta"))
+home_data_2023 <- rio::import(here::here("data", "2023", "RECH0_2023.dta"))
 
-dwelling_data_2023 <- rio::import(here::here("data", "raw", "RECH23_2023.dta"))
+dwelling_data_2023 <- rio::import(here::here("data", "2023", "RECH23_2023.dta"))
 ```
 
 ```{r}
-woman_data_1_2023 <- rio::import(here::here("data", "raw", "RECH5_2023.dta"))
+woman_data_1_2023 <- rio::import(here::here("data", "2023", "RECH5_2023.dta"))
 
-woman_data_2_2023 <- rio::import(here::here("data", "raw", "REC0111_2023.dta"))
+woman_data_2_2023 <- rio::import(here::here("data", "2023", "REC0111_2023.dta"))
 
-woman_data_3_2023 <- rio::import(here::here("data", "raw", "REC41_2023.dta"))
+woman_data_3_2023 <- rio::import(here::here("data", "2023", "REC41_2023.dta"))
 
-woman_data_4_2023 <- rio::import(here::here("data", "raw", "REC42_2023.dta"))
+woman_data_4_2023 <- rio::import(here::here("data", "2023", "REC42_2023.dta"))
 
-woman_data_5_2023 <- rio::import(here::here("data", "raw", "RE223132_2023.dta"))
+woman_data_5_2023 <- rio::import(here::here("data", "2023", "RE223132_2023.dta"))
 ```
 
 ```{r}
-children_data_1_2023 <- rio::import(here::here("data", "raw", "RECH6_2023.dta"))
+children_data_1_2023 <- rio::import(here::here("data", "2023", "RECH6_2023.dta"))
 
-children_data_2_2023 <- rio::import(here::here("data", "raw", "REC44_2023.dta"))
+children_data_2_2023 <- rio::import(here::here("data", "2023", "REC44_2023.dta"))
 ```
 
 ```{r}
-health_data_2023 <- rio::import(here::here("data", "raw", "CSALUD01_2023.dta"))
+health_data_2023 <- rio::import(here::here("data", "2023", "CSALUD01_2023.dta"))
 ```
 
 ## 2022
 
 ```{r}
 # 
-individual_data_2022 <- rio::import(here::here("data", "raw","RECH1_2022.dta"))
+individual_data_2022 <- rio::import(here::here("data", "2022","RECH1_2022.dta"))
 
-home_data_2022 <- rio::import(here::here("data", "raw", "RECH0_2022.dta"))
+home_data_2022 <- rio::import(here::here("data", "2022", "RECH0_2022.dta"))
 
-dwelling_data_2022 <- rio::import(here::here("data", "raw", "RECH23_2022.dta"))
+dwelling_data_2022 <- rio::import(here::here("data", "2022", "RECH23_2022.dta"))
 ```
 
 ```{r}
-woman_data_1_2022 <- rio::import(here::here("data", "raw", "RECH5_2022.dta"))
+woman_data_1_2022 <- rio::import(here::here("data", "2022", "RECH5_2022.dta"))
 
-woman_data_2_2022 <- rio::import(here::here("data", "raw", "REC0111_2022.dta"))
+woman_data_2_2022 <- rio::import(here::here("data", "2022", "REC0111_2022.dta"))
 
-woman_data_3_2022 <- rio::import(here::here("data", "raw", "REC41_2022.dta"))
+woman_data_3_2022 <- rio::import(here::here("data", "2022", "REC41_2022.dta"))
 
-woman_data_4_2022 <- rio::import(here::here("data", "raw", "REC42_2022.dta"))
+woman_data_4_2022 <- rio::import(here::here("data", "2022", "REC42_2022.dta"))
 
-woman_data_5_2022 <- rio::import(here::here("data", "raw", "RE223132_2022.dta"))
+woman_data_5_2022 <- rio::import(here::here("data", "2022", "RE223132_2022.dta"))
 ```
 
 ```{r}
-children_data_1_2022 <- rio::import(here::here("data", "raw", "RECH6_2022.dta"))
+children_data_1_2022 <- rio::import(here::here("data", "2022", "RECH6_2022.dta"))
 
-children_data_2_2022 <- rio::import(here::here("data", "raw", "REC44_2022.dta"))
+children_data_2_2022 <- rio::import(here::here("data", "2022", "REC44_2022.dta"))
 ```
 
 ```{r}
-health_data_2022 <- rio::import(here::here("data", "raw", "CSALUD01_2022.dta"))
+health_data_2022 <- rio::import(here::here("data", "2022", "CSALUD01_2022.dta"))
 ```
 
 ## 2021
 
 ```{r}
 # 
-individual_data_2021 <- rio::import(here::here("data", "raw","RECH1_2021.dta"))
+individual_data_2021 <- rio::import(here::here("data", "2021","RECH1_2021.dta"))
 
-home_data_2021 <- rio::import(here::here("data", "raw", "RECH0_2021.dta"))
+home_data_2021 <- rio::import(here::here("data", "2021", "RECH0_2021.dta"))
 
-dwelling_data_2021 <- rio::import(here::here("data", "raw", "RECH23_2021.dta"))
+dwelling_data_2021 <- rio::import(here::here("data", "2021", "RECH23_2021.dta"))
 ```
 
 ```{r}
-woman_data_1_2021 <- rio::import(here::here("data", "raw", "RECH5_2021.dta"))
+woman_data_1_2021 <- rio::import(here::here("data", "2021", "RECH5_2021.dta"))
 
-woman_data_2_2021 <- rio::import(here::here("data", "raw", "REC0111_2021.dta"))
+woman_data_2_2021 <- rio::import(here::here("data", "2021", "REC0111_2021.dta"))
 
-woman_data_3_2021 <- rio::import(here::here("data", "raw", "REC41_2021.dta"))
+woman_data_3_2021 <- rio::import(here::here("data", "2021", "REC41_2021.dta"))
 
-woman_data_4_2021 <- rio::import(here::here("data", "raw", "REC42_2021.dta"))
+woman_data_4_2021 <- rio::import(here::here("data", "2021", "REC42_2021.dta"))
 
-woman_data_5_2021 <- rio::import(here::here("data", "raw", "RE223132_2021.dta"))
+woman_data_5_2021 <- rio::import(here::here("data", "2021", "RE223132_2021.dta"))
 ```
 
 ```{r}
-children_data_1_2021 <- rio::import(here::here("data", "raw", "RECH6_2021.dta"))
+children_data_1_2021 <- rio::import(here::here("data", "2021", "RECH6_2021.dta"))
 
-children_data_2_2021 <- rio::import(here::here("data", "raw", "REC44_2021.dta"))
+children_data_2_2021 <- rio::import(here::here("data", "2021", "REC44_2021.dta"))
 ```
 
 ```{r}
-health_data_2021 <- rio::import(here::here("data", "raw", "CSALUD01_2021.dta"))
+health_data_2021 <- rio::import(here::here("data", "2021", "CSALUD01_2021.dta"))
 ```
 
 ## 2020
 
 ```{r}
 # 
-individual_data_2020 <- rio::import(here::here("data", "raw","RECH1_2020.dbf"))
+individual_data_2020 <- rio::import(here::here("data", "2020","RECH1_2020.dbf"))
 
-home_data_2020 <- rio::import(here::here("data", "raw", "RECH0_2020.dbf"))
+home_data_2020 <- rio::import(here::here("data", "2020", "RECH0_2020.dbf"))
 
-dwelling_data_2020 <- rio::import(here::here("data", "raw", "RECH23_2020.dbf"))
+dwelling_data_2020 <- rio::import(here::here("data", "2020", "RECH23_2020.dbf"))
 ```
 
 ```{r}
-woman_data_1_2020 <- rio::import(here::here("data", "raw", "RECH5_2020.dbf"))
+woman_data_1_2020 <- rio::import(here::here("data", "2020", "RECH5_2020.dbf"))
 
-woman_data_2_2020 <- rio::import(here::here("data", "raw", "REC0111_2020.dbf"))
+woman_data_2_2020 <- rio::import(here::here("data", "2020", "REC0111_2020.dbf"))
 
-woman_data_3_2020 <- rio::import(here::here("data", "raw", "REC41_2020.dbf"))
+woman_data_3_2020 <- rio::import(here::here("data", "2020", "REC41_2020.dbf"))
 
-woman_data_4_2020 <- rio::import(here::here("data", "raw", "REC42_2020.dbf"))
+woman_data_4_2020 <- rio::import(here::here("data", "2020", "REC42_2020.dbf"))
 
-woman_data_5_2020 <- rio::import(here::here("data", "raw", "RE223132_2020.dbf"))
+woman_data_5_2020 <- rio::import(here::here("data", "2020", "RE223132_2020.dbf"))
 ```
 
 ```{r}
-children_data_1_2020 <- rio::import(here::here("data", "raw", "RECH6_2020.dbf"))
+children_data_1_2020 <- rio::import(here::here("data", "2020", "RECH6_2020.dbf"))
 
-children_data_2_2020 <- rio::import(here::here("data", "raw", "REC44_2020.dbf"))
+children_data_2_2020 <- rio::import(here::here("data", "2020", "REC44_2020.dbf"))
 ```
 
 ```{r}
-health_data_2020 <- rio::import(here::here("data", "raw", "CSALUD01_2020.dbf"))
+health_data_2020 <- rio::import(here::here("data", "2020", "CSALUD01_2020.dbf"))
 ```
 
 # Process data
