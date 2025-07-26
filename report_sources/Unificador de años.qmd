@@ -50,7 +50,6 @@ rfextras::load_scripts()
 ## 2024
 
 ```{r}
-# 
 individual_data_2024 <- rio::import(here::here("data", "2024","RECH1_2024.dta"))
 
 home_data_2024 <- rio::import(here::here("data", "2024", "RECH0_2024.dta"))
@@ -85,7 +84,6 @@ health_data_2024 <- rio::import(here::here("data", "2024", "CSALUD01_2024.dta"))
 ## 2023
 
 ```{r}
-# 
 individual_data_2023 <- rio::import(here::here("data", "2023", "RECH1_2023.dta"))
 
 home_data_2023 <- rio::import(here::here("data", "2023", "RECH0_2023.dta"))
@@ -120,7 +118,6 @@ health_data_2023 <- rio::import(here::here("data", "2023", "CSALUD01_2023.dta"))
 ## 2022
 
 ```{r}
-# 
 individual_data_2022 <- rio::import(here::here("data", "2022","RECH1_2022.dta"))
 
 home_data_2022 <- rio::import(here::here("data", "2022", "RECH0_2022.dta"))
@@ -155,7 +152,6 @@ health_data_2022 <- rio::import(here::here("data", "2022", "CSALUD01_2022.dta"))
 ## 2021
 
 ```{r}
-# 
 individual_data_2021 <- rio::import(here::here("data", "2021","RECH1_2021.dta"))
 
 home_data_2021 <- rio::import(here::here("data", "2021", "RECH0_2021.dta"))
@@ -190,34 +186,35 @@ health_data_2021 <- rio::import(here::here("data", "2021", "CSALUD01_2021.dta"))
 ## 2020
 
 ```{r}
-# 
-individual_data_2020 <- rio::import(here::here("data", "raw","RECH1_2020.dbf"))
+individual_data_2020 <- rio::import(here::here("data", "2020","RECH1_2020.sav"))
 
-home_data_2020 <- rio::import(here::here("data", "raw", "RECH0_2020.dbf"))
+home_data_2020 <- rio::import(here::here("data", "2020", "RECH0_2020.sav"))
 
-dwelling_data_2020 <- rio::import(here::here("data", "raw", "RECH23_2020.dbf"))
+dwelling_data_2020 <- rio::import(here::here("data", "2020", "RECH23_2020.sav"))
 ```
 
 ```{r}
-woman_data_1_2020 <- rio::import(here::here("data", "raw", "RECH5_2020.dbf"))
+woman_data_1_2020 <- rio::import(here::here("data", "2020", "RECH5_2020.sav"))
 
-woman_data_2_2020 <- rio::import(here::here("data", "raw", "REC0111_2020.dbf"))
+woman_data_2_2020 <- rio::import(here::here("data", "2020", "REC0111_2020.sav"))
 
-woman_data_3_2020 <- rio::import(here::here("data", "raw", "REC41_2020.dbf"))
+woman_data_3_2020 <- rio::import(here::here("data", "2020", "REC41_2020.sav"))
 
-woman_data_4_2020 <- rio::import(here::here("data", "raw", "REC42_2020.dbf"))
+woman_data_4_2020 <- rio::import(here::here("data", "2020", "REC42_2020.sav"))
 
-woman_data_5_2020 <- rio::import(here::here("data", "raw", "RE223132_2020.dbf"))
+woman_data_5_2020 <- rio::import(here::here("data", "2020", "RE223132_2020.sav"))
 ```
 
 ```{r}
-children_data_1_2020 <- rio::import(here::here("data", "raw", "RECH6_2020.dbf"))
+children_data_1_2020 <- rio::import(here::here("data", "2020", "RECH6_2020.sav"))
 
-children_data_2_2020 <- rio::import(here::here("data", "raw", "REC44_2020.dbf"))
+children_data_2_2020 <- rio::import(here::here("data", "2020", "REC44_2020.sav"))
+
+children_data_3_2020 <- rio::import(here::here("data", "2020", "REC43_2020.sav"))
 ```
 
 ```{r}
-health_data_2020 <- rio::import(here::here("data", "raw", "CSALUD01_2020.dbf"))
+health_data_2020 <- rio::import(here::here("data", "2020", "CSALUD01_2020.sav"))
 ```
 
 # Process data
@@ -226,63 +223,66 @@ health_data_2020 <- rio::import(here::here("data", "raw", "CSALUD01_2020.dbf"))
 
 ```{r}
 # Individual data_2024
-individual_data_2024 <- individual_data_2024 |> 
-  dplyr::mutate(QSNUMERO = HVIDX)
+individual_data_2024 <- individual_data_2024 |> # Curado
+  dplyr::mutate(QSNUMERO = HVIDX) # Número de orden en el hogar
 
 # Woman data_2024
 woman_data_1_2024 <- woman_data_1_2024 |> 
-  dplyr::mutate(QSNUMERO = HA0)
+  dplyr::mutate(QSNUMERO = HA0) # Número de orden en el hogar
 
 woman_data_2_2024 <- woman_data_2_2024 |>
   dplyr::mutate(
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO))
+    QSNUMERO = as.numeric(QSNUMERO)) # Número de orden en el hogar
 
-woman_data_3_2024 <- woman_data_3_2024 |>
+woman_data_3_2024 <- woman_data_3_2024 |> # Esta une niños
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = MIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_4_2024 <- woman_data_4_2024 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_5_2024 <- woman_data_5_2024 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO)  # Número de orden en el hogar
   )
 
 # Children data_2024
-children_data_1_2024 <- children_data_1_2024 |>
+children_data_1_2024 <- children_data_1_2024 |> #
   dplyr::mutate(
     HW1 = HC1,
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC0
-  ) |>
-  dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = HC0 # Número de orden en el hogar
+  )
+ # dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
 children_data_2_2024 <- children_data_2_2024 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HWIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
-  ) |>
-    dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
+  )
+  #  dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
 
 children_data_3_2024 <- children_data_3_2024 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 ```
 
@@ -290,63 +290,66 @@ children_data_3_2024 <- children_data_3_2024 |>
 
 ```{r}
 # Individual data_2023
-individual_data_2023 <- individual_data_2023 |> 
-  dplyr::mutate(QSNUMERO = HVIDX)
+individual_data_2023 <- individual_data_2023 |> # Curado
+  dplyr::mutate(QSNUMERO = HVIDX) # Número de orden en el hogar
 
 # Woman data_2023
 woman_data_1_2023 <- woman_data_1_2023 |> 
-  dplyr::mutate(QSNUMERO = HA0)
+  dplyr::mutate(QSNUMERO = HA0) # Número de orden en el hogar
 
 woman_data_2_2023 <- woman_data_2_2023 |>
   dplyr::mutate(
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO))
+    QSNUMERO = as.numeric(QSNUMERO)) # Número de orden en el hogar
 
-woman_data_3_2023 <- woman_data_3_2023 |>
+woman_data_3_2023 <- woman_data_3_2023 |> # Esta une niños
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = MIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_4_2023 <- woman_data_4_2023 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_5_2023 <- woman_data_5_2023 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO)  # Número de orden en el hogar
   )
 
 # Children data_2023
-children_data_1_2023 <- children_data_1_2023 |>
+children_data_1_2023 <- children_data_1_2023 |> #
   dplyr::mutate(
     HW1 = HC1,
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC0
-  ) |>
-  dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = HC0 # Número de orden en el hogar
+  )
+ # dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
 children_data_2_2023 <- children_data_2_2023 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HWIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
-  ) |>
-    dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
+  )
+  #  dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
 
 children_data_3_2023 <- children_data_3_2023 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 ```
 
@@ -354,63 +357,66 @@ children_data_3_2023 <- children_data_3_2023 |>
 
 ```{r}
 # Individual data_2022
-individual_data_2022 <- individual_data_2022 |> 
-  dplyr::mutate(QSNUMERO = HVIDX)
+individual_data_2022 <- individual_data_2022 |> # Curado
+  dplyr::mutate(QSNUMERO = HVIDX) # Número de orden en el hogar
 
 # Woman data_2022
 woman_data_1_2022 <- woman_data_1_2022 |> 
-  dplyr::mutate(QSNUMERO = HA0)
+  dplyr::mutate(QSNUMERO = HA0) # Número de orden en el hogar
 
 woman_data_2_2022 <- woman_data_2_2022 |>
   dplyr::mutate(
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO))
+    QSNUMERO = as.numeric(QSNUMERO)) # Número de orden en el hogar
 
-woman_data_3_2022 <- woman_data_3_2022 |>
+woman_data_3_2022 <- woman_data_3_2022 |> # Esta une niños
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = MIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_4_2022 <- woman_data_4_2022 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_5_2022 <- woman_data_5_2022 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO)  # Número de orden en el hogar
   )
 
 # Children data_2022
-children_data_1_2022 <- children_data_1_2022 |>
+children_data_1_2022 <- children_data_1_2022 |> #
   dplyr::mutate(
     HW1 = HC1,
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC0
-  ) |>
-  dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = HC0 # Número de orden en el hogar
+  )
+ # dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
 children_data_2_2022 <- children_data_2_2022 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HWIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
-  ) |>
-    dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
+  )
+  #  dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
 
 children_data_3_2022 <- children_data_3_2022 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 ```
 
@@ -418,63 +424,66 @@ children_data_3_2022 <- children_data_3_2022 |>
 
 ```{r}
 # Individual data_2021
-individual_data_2021 <- individual_data_2021 |> 
-  dplyr::mutate(QSNUMERO = HVIDX)
+individual_data_2021 <- individual_data_2021 |> # Curado
+  dplyr::mutate(QSNUMERO = HVIDX) # Número de orden en el hogar
 
 # Woman data_2021
 woman_data_1_2021 <- woman_data_1_2021 |> 
-  dplyr::mutate(QSNUMERO = HA0)
+  dplyr::mutate(QSNUMERO = HA0) # Número de orden en el hogar
 
 woman_data_2_2021 <- woman_data_2_2021 |>
   dplyr::mutate(
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO))
+    QSNUMERO = as.numeric(QSNUMERO)) # Número de orden en el hogar
 
-woman_data_3_2021 <- woman_data_3_2021 |>
+woman_data_3_2021 <- woman_data_3_2021 |> # Esta une niños
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = MIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_4_2021 <- woman_data_4_2021 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_5_2021 <- woman_data_5_2021 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO)  # Número de orden en el hogar
   )
 
 # Children data_2021
-children_data_1_2021 <- children_data_1_2021 |>
+children_data_1_2021 <- children_data_1_2021 |> #
   dplyr::mutate(
     HW1 = HC1,
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC0
-  ) |>
-  dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = HC0 # Número de orden en el hogar
+  )
+ # dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
 children_data_2_2021 <- children_data_2_2021 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HWIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
-  ) |>
-    dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
+  )
+  #  dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
 
 children_data_3_2021 <- children_data_3_2021 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 ```
 
@@ -482,57 +491,67 @@ children_data_3_2021 <- children_data_3_2021 |>
 
 ```{r}
 # Individual data_2020
-individual_data_2020 <- individual_data_2020 |> 
-  dplyr::mutate(QSNUMERO = HVIDX)
+individual_data_2020 <- individual_data_2020 |> # Curado
+  dplyr::mutate(QSNUMERO = HVIDX) # Número de orden en el hogar
 
 # Woman data_2020
 woman_data_1_2020 <- woman_data_1_2020 |> 
-  dplyr::mutate(QSNUMERO = HA0)
+  dplyr::mutate(QSNUMERO = HA0) # Número de orden en el hogar
 
 woman_data_2_2020 <- woman_data_2_2020 |>
   dplyr::mutate(
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO))
+    QSNUMERO = as.numeric(QSNUMERO)) # Número de orden en el hogar
 
-woman_data_3_2020 <- woman_data_3_2020 |>
+woman_data_3_2020 <- woman_data_3_2020 |> # Esta une niños
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = MIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_4_2020 <- woman_data_4_2020 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
   )
 
 woman_data_5_2020 <- woman_data_5_2020 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
+    QSNUMERO = as.numeric(QSNUMERO)  # Número de orden en el hogar
   )
 
 # Children data_2020
-children_data_1_2020 <- children_data_1_2020 |>
+children_data_1_2020 <- children_data_1_2020 |> #
   dplyr::mutate(
     HW1 = HC1,
     HW2 = HC2,
     HW3 = HC3,
     HW53 = HC53,
-    QSNUMERO = HC0
-  ) |>
-  dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = HC0 # Número de orden en el hogar
+  )
+ # dplyr::filter(HC13 == 0) # Filtramos a los niños medidos
 
 children_data_2_2020 <- children_data_2_2020 |>
   dplyr::mutate(
-    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3),
+    HIDX = HWIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
     QSNUMERO = str_sub(CASEID, -2, -1),
-    QSNUMERO = as.numeric(QSNUMERO)
-  ) |>
-    dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
+  )
+  #  dplyr::filter(HW13 == 0) # Filtramos a los niños medidos
+
+children_data_3_2020 <- children_data_3_2020 |>
+  dplyr::mutate(
+    HIDX = HIDX, # Orden de historia de nacimiento
+    HHID = str_sub(CASEID, 1, str_length(CASEID) - 3), # Código del hogar
+    QSNUMERO = str_sub(CASEID, -2, -1),
+    QSNUMERO = as.numeric(QSNUMERO) # Número de orden en el hogar
+  )
 ```
 
 ## Join dataframes 2024
@@ -542,18 +561,16 @@ children_data_2_2020 <- children_data_2_2020 |>
 woman_data_2024 <- woman_data_1_2024 |>
   dplyr::left_join(woman_data_2_2024, by = c("HHID", "QSNUMERO")) |>
   dplyr::left_join(woman_data_4_2024, by = c("HHID", "QSNUMERO")) |>
-  dplyr::left_join(woman_data_3_2024, by = c("HHID", "QSNUMERO")) |>
   dplyr::left_join(woman_data_5_2024, by = c("HHID", "QSNUMERO"))
 
 # Join children data_2024
 children_data_2024 <- children_data_1_2024 |>
-  dplyr::left_join(children_data_2_2024, by = c("HHID", "QSNUMERO")) |>
-  dplyr::left_join(children_data_3_2024, by = c("HHID", "QSNUMERO")) |>
-  dplyr::rename(MIDX = HWIDX)
+  dplyr::full_join(children_data_2_2024, by = c("HHID", "QSNUMERO")) |>
+  dplyr::left_join(children_data_3_2024, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join children data with mother data_2024
 children_mother_data_2024 <- children_data_2024 |>
-  dplyr::left_join(woman_data_3_2024, by = c("HHID", "QSNUMERO", "MIDX"))
+  dplyr::left_join(woman_data_3_2024, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join home data with dwelling data_2024
 home_dwelling_data_2024 <- home_data_2024 |>
@@ -564,12 +581,12 @@ children_mother_individual_data_2024 <- children_mother_data_2024 |>
   dplyr::left_join(individual_data_2024, by = c("HHID","QSNUMERO"))
 
 # Join home/dwelling/individual data with mother data_2024
-pre_data_2024 <- children_mother_individual_data_2024 |>
-  dplyr::left_join(woman_data_2024, by = c("HHID","QSNUMERO"))
+pre_data_2024 <- children_mother_individual_data_2024 |> 
+  dplyr::left_join(woman_data_2024, by = c("HHID", "QSNUMERO"))
 
 # Join home/dwelling/individual/mother data with health data_2024
 pre_data_1_2024 <- pre_data_2024 |> 
-  dplyr::left_join(health_data_2024, by = c("HHID","QSNUMERO"))
+  dplyr::left_join(health_data_2024, by = c("HHID", "QSNUMERO"))
 
 # Join all_2024
 endesdbm_2024 <- pre_data_1_2024 |>
@@ -578,7 +595,7 @@ endesdbm_2024 <- pre_data_1_2024 |>
 # Clean names
 # endestc <- janitor::clean_names(endestc)
 
-# haven::write_dta(endestc, here::here("data", "endestc.dta"))
+# haven::write_dta(endesdbm_2024_join, here::here("data", "endesdbm_2024.dta"))
 ```
 
 ## Join dataframes 2023
@@ -592,13 +609,12 @@ woman_data_2023 <- woman_data_1_2023 |>
 
 # Join children data_2023
 children_data_2023 <- children_data_1_2023 |>
-  dplyr::left_join(children_data_2_2023, by = c("HHID", "QSNUMERO")) |>
-  dplyr::left_join(children_data_3_2023, by = c("HHID", "QSNUMERO")) |>
-  dplyr::rename(MIDX = HWIDX)
+  dplyr::full_join(children_data_2_2023, by = c("HHID", "QSNUMERO")) |>
+  dplyr::left_join(children_data_3_2023, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join children data with mother data_2023
 children_mother_data_2023 <- children_data_2023 |>
-  dplyr::left_join(woman_data_3_2023, by = c("HHID", "QSNUMERO", "MIDX"))
+  dplyr::left_join(woman_data_3_2023, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join home data with dwelling data_2023
 home_dwelling_data_2023 <- home_data_2023 |>
@@ -609,21 +625,16 @@ children_mother_individual_data_2023 <- children_mother_data_2023 |>
   dplyr::left_join(individual_data_2023, by = c("HHID","QSNUMERO"))
 
 # Join home/dwelling/individual data with mother data_2023
-pre_data_2023 <- children_mother_individual_data_2023 |>
-  dplyr::left_join(woman_data_2023, by = c("HHID","QSNUMERO"))
+pre_data_2023 <- children_mother_individual_data_2023 |> 
+  dplyr::left_join(woman_data_2023, by = c("HHID", "QSNUMERO"))
 
 # Join home/dwelling/individual/mother data with health data_2023
 pre_data_1_2023 <- pre_data_2023 |> 
-  dplyr::left_join(health_data_2023, by = c("HHID","QSNUMERO"))
+  dplyr::left_join(health_data_2023, by = c("HHID", "QSNUMERO"))
 
 # Join all_2023
 endesdbm_2023 <- pre_data_1_2023 |>
   dplyr::left_join(home_dwelling_data_2023, by = 'HHID')
-
-# Clean names
-# endestc <- janitor::clean_names(endestc)
-
-# haven::write_dta(endestc, here::here("data", "endestc.dta"))
 ```
 
 ## Join dataframes 2022
@@ -637,13 +648,12 @@ woman_data_2022 <- woman_data_1_2022 |>
 
 # Join children data_2022
 children_data_2022 <- children_data_1_2022 |>
-  dplyr::left_join(children_data_2_2022, by = c("HHID", "QSNUMERO")) |>
-  dplyr::left_join(children_data_3_2022, by = c("HHID", "QSNUMERO")) |>
-  dplyr::rename(MIDX = HWIDX)
+  dplyr::full_join(children_data_2_2022, by = c("HHID", "QSNUMERO")) |>
+  dplyr::left_join(children_data_3_2022, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join children data with mother data_2022
 children_mother_data_2022 <- children_data_2022 |>
-  dplyr::left_join(woman_data_3_2022, by = c("HHID", "QSNUMERO", "MIDX"))
+  dplyr::left_join(woman_data_3_2022, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join home data with dwelling data_2022
 home_dwelling_data_2022 <- home_data_2022 |>
@@ -654,21 +664,16 @@ children_mother_individual_data_2022 <- children_mother_data_2022 |>
   dplyr::left_join(individual_data_2022, by = c("HHID","QSNUMERO"))
 
 # Join home/dwelling/individual data with mother data_2022
-pre_data_2022 <- children_mother_individual_data_2022 |>
-  dplyr::left_join(woman_data_2022, by = c("HHID","QSNUMERO"))
+pre_data_2022 <- children_mother_individual_data_2022 |> 
+  dplyr::left_join(woman_data_2022, by = c("HHID", "QSNUMERO"))
 
 # Join home/dwelling/individual/mother data with health data_2022
 pre_data_1_2022 <- pre_data_2022 |> 
-  dplyr::left_join(health_data_2022, by = c("HHID","QSNUMERO"))
+  dplyr::left_join(health_data_2022, by = c("HHID", "QSNUMERO"))
 
 # Join all_2022
 endesdbm_2022 <- pre_data_1_2022 |>
   dplyr::left_join(home_dwelling_data_2022, by = 'HHID')
-
-# Clean names
-# endestc <- janitor::clean_names(endestc)
-
-# haven::write_dta(endestc, here::here("data", "endestc.dta"))
 ```
 
 ## Join dataframes 2021
@@ -682,13 +687,12 @@ woman_data_2021 <- woman_data_1_2021 |>
 
 # Join children data_2021
 children_data_2021 <- children_data_1_2021 |>
-  dplyr::left_join(children_data_2_2021, by = c("HHID", "QSNUMERO")) |>
-  dplyr::left_join(children_data_3_2021, by = c("HHID", "QSNUMERO")) |>
-  dplyr::rename(MIDX = HWIDX)
+  dplyr::full_join(children_data_2_2021, by = c("HHID", "QSNUMERO")) |>
+  dplyr::left_join(children_data_3_2021, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join children data with mother data_2021
 children_mother_data_2021 <- children_data_2021 |>
-  dplyr::left_join(woman_data_3_2021, by = c("HHID", "QSNUMERO", "MIDX"))
+  dplyr::left_join(woman_data_3_2021, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join home data with dwelling data_2021
 home_dwelling_data_2021 <- home_data_2021 |>
@@ -699,21 +703,16 @@ children_mother_individual_data_2021 <- children_mother_data_2021 |>
   dplyr::left_join(individual_data_2021, by = c("HHID","QSNUMERO"))
 
 # Join home/dwelling/individual data with mother data_2021
-pre_data_2021 <- children_mother_individual_data_2021 |>
-  dplyr::left_join(woman_data_2021, by = c("HHID","QSNUMERO"))
+pre_data_2021 <- children_mother_individual_data_2021 |> 
+  dplyr::left_join(woman_data_2021, by = c("HHID", "QSNUMERO"))
 
 # Join home/dwelling/individual/mother data with health data_2021
 pre_data_1_2021 <- pre_data_2021 |> 
-  dplyr::left_join(health_data_2021, by = c("HHID","QSNUMERO"))
+  dplyr::left_join(health_data_2021, by = c("HHID", "QSNUMERO"))
 
 # Join all_2021
 endesdbm_2021 <- pre_data_1_2021 |>
   dplyr::left_join(home_dwelling_data_2021, by = 'HHID')
-
-# Clean names
-# endestc <- janitor::clean_names(endestc)
-
-# haven::write_dta(endestc, here::here("data", "endestc.dta"))
 ```
 
 ## Join dataframes 2020
@@ -727,12 +726,12 @@ woman_data_2020 <- woman_data_1_2020 |>
 
 # Join children data_2020
 children_data_2020 <- children_data_1_2020 |>
-  dplyr::left_join(children_data_2_2020, by = c("HHID", "QSNUMERO")) |>
-  dplyr::rename(MIDX = HWIDX)
+  dplyr::full_join(children_data_2_2020, by = c("HHID", "QSNUMERO")) |>
+  dplyr::left_join(children_data_3_2020, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join children data with mother data_2020
 children_mother_data_2020 <- children_data_2020 |>
-  dplyr::left_join(woman_data_3_2020, by = c("HHID", "QSNUMERO", "MIDX"))
+  dplyr::left_join(woman_data_3_2020, by = c("HHID", "QSNUMERO", "HIDX"))
 
 # Join home data with dwelling data_2020
 home_dwelling_data_2020 <- home_data_2020 |>
@@ -743,21 +742,16 @@ children_mother_individual_data_2020 <- children_mother_data_2020 |>
   dplyr::left_join(individual_data_2020, by = c("HHID","QSNUMERO"))
 
 # Join home/dwelling/individual data with mother data_2020
-pre_data_2020 <- children_mother_individual_data_2020 |>
-  dplyr::left_join(woman_data_2020, by = c("HHID","QSNUMERO"))
+pre_data_2020 <- children_mother_individual_data_2020 |> 
+  dplyr::left_join(woman_data_2020, by = c("HHID", "QSNUMERO"))
 
 # Join home/dwelling/individual/mother data with health data_2020
 pre_data_1_2020 <- pre_data_2020 |> 
-  dplyr::left_join(health_data_2020, by = c("HHID","QSNUMERO"))
+  dplyr::left_join(health_data_2020, by = c("HHID", "QSNUMERO"))
 
 # Join all_2020
 endesdbm_2020 <- pre_data_1_2020 |>
   dplyr::left_join(home_dwelling_data_2020, by = 'HHID')
-
-# Clean names
-# endestc <- janitor::clean_names(endestc)
-
-# haven::write_dta(endestc, here::here("data", "endestc.dta"))
 ```
 
 ## year codification
@@ -812,7 +806,7 @@ endesdbm_2021_join <- endesdbm_2021 |>
   "SHEQUIPO"
 ))
 
-endesdbm_2020 <- endesdbm_2020 |>
+endesdbm_2020_join <- endesdbm_2020 |>
   dplyr::mutate(year=2020) |>
   dplyr::select(-ends_with(".x"), -ends_with(".y"))
 ```
@@ -828,7 +822,7 @@ count_endesdbm_2022 <- colnames(endesdbm_2022_join)
 
 count_endesdbm_2021 <- colnames(endesdbm_2021_join)
 
-count_endesdbm_2020 <- colnames(endesdbm_2020)
+count_endesdbm_2020 <- colnames(endesdbm_2020_join)
 ```
 
 ```{r}
@@ -836,7 +830,7 @@ dplyr::setdiff(count_endesdbm_2022, count_endesdbm_2021)
 
 label_backup <- sapply(endesdbm_2024_join, function(x) attr(x, "label"))
 
-test <- bind_rows(endesdbm_2024_join, endesdbm_2023_join, endesdbm_2022_join, endesdbm_2021_join)
+test <- bind_rows(endesdbm_2024_join, endesdbm_2023_join, endesdbm_2022_join, endesdbm_2020_join)
 
 for (v in names(label_backup)) {
   attr(test[[v]], "label") <- label_backup[[v]]
@@ -846,7 +840,7 @@ for (v in names(label_backup)) {
 # Clean names
 # endestc <- janitor::clean_names(endestc)
 
-haven::write_dta(test, here::here("data", "clean", "endes_2024-2021.dta"))
+haven::write_dta(test, here::here("data", "clean", "endes_2024-2020.dta"))
 ```
 
 ## full join
