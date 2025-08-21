@@ -115,7 +115,7 @@ dag <- ggdag::dagify(
   # Ancestors of exposure and outcome
   Educacion_madre ~ Edad_Madre,
   Numero_Hijos ~ Edad_Madre,
-  Amamantamiento ~ Edad_Madre + Depresion_Madre + Edad_Nino,
+  Amamantamiento ~ Edad_Madre + Depresion_Madre + Edad_Nino + Educacion_madre,
   Suplementacion_Hierro_Madre ~ Indice_Pobreza,
   Suplementacion_Hierro_Nino ~ Indice_Pobreza,
   Vitamina_A ~ Indice_Pobreza,
@@ -152,28 +152,28 @@ dag <- ggdag::dagify(
       Indice_Pobreza = 2, DBM = 15,
       
       Agua = -2, Combustible = -2, Desague = -3, Electricidad = -3, Convivencia = 0,
-      Jefa_del_hogar = 2, Ingreso_Percapita = -4, 
+      Jefa_del_hogar = 2, Ingreso_Percapita = 0, 
       
       Inseguridad_Alimentaria = 8.5, Suplementacion_Hierro_Madre = 7.5, 
       Suplementacion_Hierro_Nino = 5, Vitamina_A = 10,
       
-      Educacion_madre = 2, Numero_Hijos = 5, Edad_Madre = 7.5, Edad_Nino = 10,
-      Area_Residencia = 12.5, Region_Geografica = 15, Amamantamiento = 12,
-      Depresion_Madre = 15, Primero_parto = 5
+      Educacion_madre = 2, Numero_Hijos = 6, Edad_Madre = 8.5, Edad_Nino = 11,
+      Area_Residencia = 13, Region_Geografica = 15, Amamantamiento = 12,
+      Depresion_Madre = 15, Primero_parto = 4
     ),
     
     y = c(
       Indice_Pobreza = 0, DBM = 0,
       
       Agua = -1, Combustible = 1, Desague = 0.5, Electricidad = -0.5, 
-      Convivencia = -1.25, Jefa_del_hogar = -1.25, Ingreso_Percapita = 0,
+      Convivencia = -1.25, Jefa_del_hogar = -1.25, Ingreso_Percapita = 1.25,
       
       Inseguridad_Alimentaria = 0.4, Suplementacion_Hierro_Madre = -1.2,
       Suplementacion_Hierro_Nino = -1.2, Vitamina_A = -1.2,
       
-      Educacion_madre = 1.2, Numero_Hijos = 1.2, Edad_Madre = 1.7, Edad_Nino = 1.5,
+      Educacion_madre = 0.8, Numero_Hijos = 1.8, Edad_Madre = 2.1, Edad_Nino = 1.8,
       Area_Residencia = 1.5, Region_Geografica = 1.2, Amamantamiento = -1.2,
-      Depresion_Madre = -1.2, Primero_parto = 1.7
+      Depresion_Madre = -1.2, Primero_parto = 1.5
     )
   )
 )
@@ -185,10 +185,10 @@ nodos <- ggdag::tidy_dagitty(dag)$data |>
     name == "Indice_Pobreza" ~ "Exposición",
     name %in% c(
       "Suplementacion_Hierro_Madre", "Suplementacion_Hierro_Nino", 
-      "Vitamina_A") ~ "Mediador",
+      "Vitamina_A", "Amamantamiento") ~ "Mediador",
     name %in% c(
       "Educacion_madre", "Numero_Hijos", "Edad_Madre", "Edad_Nino", "Area_Residencia",
-      "Region_Geografica", "Amamantamiento", "Primero_parto") ~ "Confusor",
+      "Region_Geografica", "Primero_parto") ~ "Confusor",
     name %in% c(
       "Agua", "Combustible", "Desague", "Electricidad", "Convivencia", 
       "Jefa_del_hogar") ~ "Ancestros de exposición",
@@ -212,8 +212,8 @@ colores <- c(
 # Produce outputs
 
 ```{r}
-#| fig-height: 7
-#| fig-width: 15
+#| fig-height: 10
+#| fig-width: 12
 F1 <- ggdag::ggdag(dag, text = FALSE, use_labels = NULL) +
   ggdag::geom_dag_node(
     data = nodos,
@@ -226,15 +226,16 @@ F1 <- ggdag::ggdag(dag, text = FALSE, use_labels = NULL) +
     data = nodos,
     aes(label = label),
     color = "black",
-    size = 3.5,
+    size = 4,
     nudge_y = 0.25,
     lineheight = 0.95,
     family = "Zilla Slab",
     check_overlap = FALSE
   ) +
   ggplot2::scale_fill_manual(values = colores, name = "Tipo de variable") +
-  ggdag::theme_dag_blank() +
+  ggdag::theme_dag() +
   ggplot2::theme(
+    legend.position = "bottom",
     text = element_text(family = "Zilla Slab"),
     legend.title = element_text(face = "bold"), 
     legend.text = element_text(size = 11),
@@ -251,8 +252,8 @@ F1
 ggsave(
   plot = F1,
   filename = here::here("outputs", "DAG_DBM.jpeg"),
-  width = 15,
-  height = 7,
+  width = 12,
+  height = 10,
   dpi = 400,
   units = "in",
   device = "png"

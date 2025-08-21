@@ -759,7 +759,6 @@ endesdbm_2020 <- pre_data_1_2020 |>
 ```{r}
 endesdbm_2024_join <- endesdbm_2024 |>
   dplyr::mutate(year = 2024) |>
-  dplyr::select(-ends_with(".x"), -ends_with(".y")) |>
   dplyr::rename(NCONGLOME=NCONGLOME1) |>
   dplyr::select(-c(HW56A, HW57A, V456A, V457A)) |>
   dplyr::select(-c(

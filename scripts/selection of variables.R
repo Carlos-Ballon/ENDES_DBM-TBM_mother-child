@@ -15,6 +15,7 @@ variable_selection_endes <- function(data) {
     SHREGION, # Región natural *
     HV270, # Indice de riqueza *
     HV271, # Puntuación indice de riqueza *
+    HV248, # Número de personas enfermas 18-59
     
     # Madre 15-49 años
     HV101, # Relación de parentesco con el jefe del hogar *
@@ -50,6 +51,16 @@ variable_selection_endes <- function(data) {
     M4,    # Duración de la lactancia *
     M5,    # Meses de amamantamiento *
     V404,  # Actualmente amamantando *
+    V716,  # Ocupación del esposo/compañero
+    V717,  # Grupos de ocupación estandarizados de la encuestada
+    V719,  # Trabajo para la familia, otros, para sí misma
+    V721,  # Trabaja en casa o fuera
+    V739,  # Usualmente trabaja  todo el año/por temporada o sólo de vez en cuado
+    V743A, # Quién tiene la última palabra sobre: cuidado de su salud
+    V743B, # Quién tiene la última palabra sobre: compras grandes del hogar
+    V743C,
+    
+    
     
     # Niño 
     HC1,   # Edad en meses *

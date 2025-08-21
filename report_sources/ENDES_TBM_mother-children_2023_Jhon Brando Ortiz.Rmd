@@ -615,7 +615,7 @@ endestcm=
   endestcm %>%
     group_by(id) %>%
     slice_min(age_child) %>%
-    ungroup
+    ungroup()
 
 summary(endestcm$age_mother)
 ```
